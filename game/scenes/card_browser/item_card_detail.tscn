@@ -1,6 +1,6 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://scenes/card_browser/card_detail.gd" id="1_script"]
+[ext_resource type="Script" path="res://scenes/card_browser/item_card_detail.gd" id="1_script"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel_bg"]
 bg_color = Color(0.16, 0.16, 0.2, 1)
@@ -9,10 +9,7 @@ corner_radius_top_right = 12
 corner_radius_bottom_right = 12
 corner_radius_bottom_left = 12
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_xp_fill"]
-bg_color = Color(0.5, 0.78, 1, 1)
-
-[node name="CardDetail" type="Control"]
+[node name="ItemCardDetail" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -64,43 +61,23 @@ layout_mode = 1
 anchor_left = 0.04
 anchor_top = 0.77
 anchor_right = 0.96
-anchor_bottom = 0.83
+anchor_bottom = 0.85
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_font_sizes/font_size = 30
-text = "Creature"
+text = "Item"
 horizontal_alignment = 1
 
-[node name="HpLabel" type="Label" parent="Panel"]
+[node name="DescriptionLabel" type="Label" parent="Panel"]
 layout_mode = 1
 anchor_left = 0.04
-anchor_top = 0.835
-anchor_right = 0.96
-anchor_bottom = 0.865
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_colors/font_color = Color(0.85, 0.4, 0.4, 1)
-theme_override_font_sizes/font_size = 18
-text = "10 HP"
-horizontal_alignment = 1
-
-[node name="XpBar" type="ProgressBar" parent="Panel"]
-layout_mode = 1
-anchor_left = 0.04
-anchor_top = 0.875
-anchor_right = 0.96
-anchor_bottom = 0.90
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_styles/fill = SubResource("StyleBoxFlat_xp_fill")
-show_percentage = false
-
-[node name="AbilityList" type="VBoxContainer" parent="Panel"]
-layout_mode = 1
-anchor_left = 0.04
-anchor_top = 0.915
+anchor_top = 0.87
 anchor_right = 0.96
 anchor_bottom = 0.98
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 8
+theme_override_font_sizes/font_size = 20
+text = "Description"
+horizontal_alignment = 1
+vertical_alignment = 0
+autowrap_mode = 3

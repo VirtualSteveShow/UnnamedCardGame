@@ -4,6 +4,7 @@ extends Control
 ## current main scene while later gameplay systems are still being built.
 
 const CardItemScene := preload("res://scenes/card_browser/card_item.tscn")
+const ItemCardItemScene := preload("res://scenes/card_browser/item_card_item.tscn")
 
 ## How many card rows should be visible in the scroll area at once;
 ## anything beyond that is reached by scrolling rather than shrinking
@@ -27,6 +28,7 @@ const VERSION_LABEL_SIZE := Vector2(160.0, 44.0)
 @onready var version_bg: ColorRect = $VersionBg
 @onready var version_label: Label = $VersionLabel
 @onready var detail_overlay: Control = $CardDetail
+@onready var item_detail_overlay: Control = $ItemCardDetail
 
 var _card_items: Array[Control] = []
 
@@ -63,6 +65,17 @@ func _populate_grid() -> void:
 		grid.add_child(item)
 		item.setup(card_data)
 		item.card_selected.connect(_on_card_selected)
+		item.drag_scrolled.connect(_on_card_drag_scrolled)
+		_card_items.append(item)
+
+	# Item/action cards (capture tools, healing) go in the same scrollable
+	# grid as creature cards, appended after them for now -- there's no
+	# deck-section concept in the browser yet.
+	for item_data in ItemDatabase.get_item_cards():
+		var item := ItemCardItemScene.instantiate()
+		grid.add_child(item)
+		item.setup(item_data)
+		item.item_selected.connect(_on_item_selected)
 		item.drag_scrolled.connect(_on_card_drag_scrolled)
 		_card_items.append(item)
 
@@ -129,7 +142,7 @@ func _update_card_layout() -> void:
 	var available_height: float = scroll_container.size.y
 	var card_height: float = (available_height - v_separation * (VISIBLE_ROWS - 1)) / VISIBLE_ROWS
 	card_height = maxf(card_height, 80.0)
-	var card_width: float = card_height * CardData.ASPECT_RATIO
+	var card_width: float = card_height * BaseCardData.ASPECT_RATIO
 
 	for item in _card_items:
 		item.custom_minimum_size = Vector2(card_width, card_height)
@@ -141,6 +154,10 @@ func _update_card_layout() -> void:
 
 func _on_card_selected(card_data: CardData) -> void:
 	detail_overlay.show_card(card_data)
+
+
+func _on_item_selected(item_data: ItemCardData) -> void:
+	item_detail_overlay.show_item(item_data)
 
 
 ## Cards forward their own drag movement here instead of relying on it

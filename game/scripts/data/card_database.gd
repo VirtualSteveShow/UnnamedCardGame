@@ -1,33 +1,54 @@
 class_name CardDatabase
 extends RefCounted
-## Temporary source of creature cards for the card browser.
+## Source of creature cards for the card browser.
 ##
 ## Once real content exists for every card (likely authored as individual
 ## CardData .tres resources), this will be replaced. For now the first
-## few entries carry real Flux-generated art (REAL_CREATURES below) and
-## the rest are fabricated placeholder cards, so the browser has a mix
-## of real and stand-in content to lay out.
-
-## Real creature art generated so far: [display name, texture path, xp
-## progress, level]. Add to this as more art gets finished; anything
-## beyond this list still falls back to a placeholder-color swatch.
+## entries carry real Flux-generated art (REAL_CREATURES below) and the
+## rest are fabricated placeholder cards, so the browser has a mix of
+## real and stand-in content to lay out.
 ##
-## The original style-test roster (fox/owl/turtle/wolf/dragon/rabbit)
-## was removed once the City Faction (gritty urban night style) replaced
-## it as the actual first faction -- see game/assets/city_faction/.
-##
-## City Faction starter: a stray black cat with two evolution paths,
-## Rogue and Brawler. Starters get the full 3-stage arc (base -> in
-## training -> expert); most of the wider roster will only get a single
-## evolution, and some none at all. Evolution mechanics aren't wired up
-## yet -- these are five separate cards for now so the art can be
-## reviewed as a line, with level/XP state hinting at where each sits.
+## City Faction (gritty urban night style, the game's first faction):
+## starters get a full 3-stage arc (base -> in training -> expert) with
+## a branch point between two playstyles; most of the wider roster gets
+## at most one evolution, and some (can_evolve = false) get none at all
+## by design -- less expressive/intelligent animals like a cockroach or
+## opossum don't read as plausible wearing gear or having a "trained"
+## personality upgrade the way a raccoon, crow, or dog does. See
+## docs/gameplay-notes.md for the full design writeup.
 const REAL_CREATURES := [
-	["Alley Kitten", "res://assets/city_faction/black_cat_base.png", 0.1, 1],
-	["Cutpurse Cat", "res://assets/city_faction/black_cat_rogue_lv2.png", 0.5, 2],
-	["Backalley Blade", "res://assets/city_faction/black_cat_rogue_lv3.png", 1.0, 3],
-	["Junkyard Scrapper", "res://assets/city_faction/black_cat_brawler_lv2.png", 0.5, 2],
-	["Alley Boss", "res://assets/city_faction/black_cat_brawler_lv3.png", 1.0, 3],
+	{name = "Alley Kitten", path = "res://assets/city_faction/black_cat_base.png",
+		xp = 0.1, level = 1, max_health = 10, can_evolve = true},
+	{name = "Cutpurse Cat", path = "res://assets/city_faction/black_cat_rogue_lv2.png",
+		xp = 0.5, level = 2, max_health = 10, can_evolve = true},
+	{name = "Backalley Blade", path = "res://assets/city_faction/black_cat_rogue_lv3.png",
+		xp = 1.0, level = 3, max_health = 10, can_evolve = true},
+	{name = "Junkyard Scrapper", path = "res://assets/city_faction/black_cat_brawler_lv2.png",
+		xp = 0.5, level = 2, max_health = 10, can_evolve = true},
+	{name = "Alley Boss", path = "res://assets/city_faction/black_cat_brawler_lv3.png",
+		xp = 1.0, level = 3, max_health = 10, can_evolve = true},
+
+	# Wider roster -- can_evolve = true flags creatures earmarked for a
+	# future evolution line (not yet drawn); false means single-stage by
+	# design, not just "no art yet".
+	{name = "Raccoon", path = "res://assets/city_faction/raccoon.png",
+		xp = 0.2, level = 1, max_health = 12, can_evolve = true},
+	{name = "Crow", path = "res://assets/city_faction/crow.png",
+		xp = 0.2, level = 1, max_health = 6, can_evolve = true},
+	{name = "Stray Dog", path = "res://assets/city_faction/stray_dog.png",
+		xp = 0.2, level = 1, max_health = 14, can_evolve = true},
+	{name = "Pigeon", path = "res://assets/city_faction/pigeon.png",
+		xp = 0.0, level = 1, max_health = 5, can_evolve = false},
+	{name = "Opossum", path = "res://assets/city_faction/opossum.png",
+		xp = 0.0, level = 1, max_health = 8, can_evolve = false},
+	{name = "Cockroach", path = "res://assets/city_faction/cockroach.png",
+		xp = 0.0, level = 1, max_health = 4, can_evolve = false},
+	{name = "Sewer Rat", path = "res://assets/city_faction/sewer_rat.png",
+		xp = 0.0, level = 1, max_health = 10, can_evolve = false},
+	{name = "Sewer Alligator", path = "res://assets/city_faction/sewer_alligator.png",
+		xp = 0.0, level = 1, max_health = 30, can_evolve = false},
+	{name = "Bat", path = "res://assets/city_faction/bat.png",
+		xp = 0.0, level = 1, max_health = 6, can_evolve = false},
 ]
 
 const PLACEHOLDER_COLORS: Array[Color] = [
@@ -47,10 +68,13 @@ static func get_placeholder_cards() -> Array[CardData]:
 		var card := CardData.new()
 
 		if i < REAL_CREATURES.size():
-			card.card_name = REAL_CREATURES[i][0]
-			card.art_texture = load(REAL_CREATURES[i][1])
-			card.xp_progress = REAL_CREATURES[i][2]
-			card.level = REAL_CREATURES[i][3]
+			var entry: Dictionary = REAL_CREATURES[i]
+			card.card_name = entry.name
+			card.art_texture = load(entry.path)
+			card.xp_progress = entry.xp
+			card.level = entry.level
+			card.max_health = entry.max_health
+			card.can_evolve = entry.can_evolve
 		else:
 			card.card_name = "Creature %02d" % (i + 1)
 			card.placeholder_color = PLACEHOLDER_COLORS[i % PLACEHOLDER_COLORS.size()]

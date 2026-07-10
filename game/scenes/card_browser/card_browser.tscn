@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scenes/card_browser/card_browser.gd" id="1_script"]
 [ext_resource type="PackedScene" path="res://scenes/card_browser/card_detail.tscn" id="2_detail"]
+[ext_resource type="PackedScene" path="res://scenes/card_browser/item_card_detail.tscn" id="3_item_detail"]
 
 [node name="CardBrowser" type="Control"]
 layout_mode = 3
@@ -87,6 +88,14 @@ horizontal_alignment = 2
 vertical_alignment = 2
 
 [node name="CardDetail" parent="." instance=ExtResource("2_detail")]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ItemCardDetail" parent="." instance=ExtResource("3_item_detail")]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0

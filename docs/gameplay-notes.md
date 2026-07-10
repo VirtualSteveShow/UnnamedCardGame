@@ -40,11 +40,19 @@ Slay the Spire structure/loop, with Pokémon-style creature collecting layered i
   (partial gear, learning their path) -> expert (full gear, path fully realized).
   The first level-up is a *branch point* -- the player picks which path to train
   toward, not a fixed single line.
-- **Most other creatures get at most one evolution**, and some get none at all.
-  Keeps the art budget sane while still making starters feel special.
+- **Most other creatures get at most one evolution**, and some get none at all
+  -- gated by `CardData.can_evolve`. Deciding factor: whether the animal reads
+  as expressive/intelligent enough to plausibly gain personality and gear
+  (raccoon, crow, dog = yes; cockroach, opossum, pigeon, sewer rat, sewer
+  alligator, bat = no, permanently single-stage by design, not just "no art
+  yet"). Keeps the art budget sane while still making starters feel special.
 - Evolution mechanics (actually leveling up / choosing a path in-game) aren't
   built yet -- each stage currently exists as its own separate CardData entry
   so the art can be reviewed as a line.
+- **Future UX idea (not built)**: the browser currently lists every evolution
+  stage as its own card in the grid. Eventually collapse each line down to a
+  single card (e.g. just "Black Cat"), with evolutions viewable/selectable
+  from within that card's detail view instead of cluttering the main grid.
 
 ## Faction: City Faction (first faction, in progress)
 
@@ -66,32 +74,48 @@ replaced it as the real first faction).
   A vest draped over an upright torso doesn't work anatomically on a quadruped
   either — bandaged paws work much better as the "brawler" tell.
 
-**Roster brainstorm (not yet built)**, organized by where they live:
-- *Street*: rat (swarm/numbers flavor), raccoon (built-in bandit-mask look,
-  own line rather than folded into the cat's rogue path — evolved form carries
-  a stolen-goods bindle), pigeon (scruffy -> rooftop lookout/scout), crow/raven
-  (night-omen scout, moodier than the pigeon), stray dog (brawler-flavored
-  rival line)
-- *Sewer*: opossum ("plays dead" is a built-in mechanical hook — defensive/
-  feign-death ability), cockroach (near-unkillable flavor, persistence/revive),
-  sewer rat (bigger/mutated, poison flavor, distinct from the street rat),
-  sewer alligator (urban legend, rare/boss-tier, big scale departure)
-- *Night sky*: bat (reinforces the night theme, echolocation -> reveal/scout
-  mechanic)
-- Decision: **not** every creature needs a Rogue/Brawler branch — just the
-  starter cat (and maybe the dog as a Brawler-flavored parallel line). Let
-  the rest of the roster lean into one archetype or the other through flavor/
-  stats without a full branching tree each.
+**Roster (built, base/Lv1 art only except the starter)**, organized by where
+they live:
+- *Street*: raccoon (`can_evolve`, built-in bandit-mask look, own line rather
+  than folded into the cat's rogue path -- evolved form would carry a
+  stolen-goods bindle), crow (`can_evolve`, night-omen scout), pigeon
+  (single-stage, rooftop utility flavor), stray dog (`can_evolve`,
+  brawler-flavored parallel line)
+- *Sewer*: opossum (single-stage; "plays dead" is a built-in mechanical hook
+  for a future defensive/feign-death ability), cockroach (single-stage,
+  near-unkillable flavor -> persistence/revive mechanic), sewer rat
+  (single-stage, mutated/toxic flavor, distinct from a plain street rat --
+  dropped the separate street rat for now, sewer rat covers the "rat" niche),
+  sewer alligator (single-stage, urban legend, rare/boss-tier, big scale
+  departure -- 30 max_health vs. everything else in the 4-14 range)
+- *Night sky*: bat (single-stage, reinforces the night theme, echolocation ->
+  future reveal/scout mechanic)
+- Decision confirmed: **not** every creature needs a Rogue/Brawler branch --
+  just the starter cat. The rest lean into one archetype or the other through
+  flavor/stats without a full branching tree each.
+- Still not built: actual evolution art for raccoon/crow/dog (flagged
+  `can_evolve = true`, waiting on it) and the "street rat" swarm-flavor card
+  if we still want it alongside sewer rat.
 
-**Item/action card ideas** (to test non-creature card layout, not yet built):
-Switchblade (crit/attack item), Trash Lid Shield (defense item), Smoke Bomb
-(evasion action), Nine Lives (cat-flavored cheat-death action).
+**Item/action cards (built)** -- deliberately distinct visual layout from
+creature cards (no XP bar, no abilities list; a description block instead) to
+prove out how non-creature cards read. See `ItemCardData`/`ItemDatabase`.
+- **Capture cards**, tiered by HP% threshold, City-Faction-flavored as
+  scrap-built traps rather than fantasy capture devices: Alley Snare (25%,
+  the version in every starter deck), Weighted Net (50%), Reinforced Cage
+  (75%). One use per battle (`ItemCardData.one_use_per_battle`).
+- **Healing**: Back-Alley Bandage, restores 8 HP. All creatures now carry a
+  `max_health` stat (shown on the card detail view) to give healing/damage
+  something to act on once battle systems exist.
 
 ## Open questions / not yet decided
 
 - How many starter creatures eventually, and how they're chosen (currently
   just the City Faction black cat).
 - Energy system details (regen rate, max energy, per-turn vs per-encounter).
-- Capture item rules (success rate? one-time use? tied to creature HP/state?).
+- Capture cards are designed (HP% tiers, one use per battle -- see City
+  Faction section) but not wired into any actual battle logic yet.
 - Actual evolution *mechanic* (leveling up / choosing a path in real gameplay,
   vs. today's separate-CardData-per-stage placeholder approach).
+- Damage/HP mechanics in general -- `max_health` exists on every creature
+  card now but nothing subtracts from it yet.
