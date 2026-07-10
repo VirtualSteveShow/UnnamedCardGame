@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scenes/battle/battle_hand_card_tile.gd" id="1_script"]
 
 [node name="BattleHandCardTile" type="Button"]
-custom_minimum_size = Vector2(140, 190)
+custom_minimum_size = Vector2(180, 245)
 layout_mode = 2
 text = ""
 script = ExtResource("1_script")
@@ -27,7 +27,7 @@ anchor_bottom = 0.82
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 20
 text = "Card"
 horizontal_alignment = 1
 clip_text = true
@@ -40,7 +40,7 @@ anchor_bottom = 0.98
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 17
 theme_override_colors/font_color = Color(0.5, 0.78, 1, 1)
 text = "1 energy"
 horizontal_alignment = 1

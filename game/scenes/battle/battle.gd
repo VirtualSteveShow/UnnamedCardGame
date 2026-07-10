@@ -92,6 +92,7 @@ func _ready() -> void:
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
 	return_button.pressed.connect(_return_to_browser)
 	result_return_button.pressed.connect(_return_to_browser)
+	get_viewport().size_changed.connect(_refresh_all)
 
 	_rebuild_hand_tiles()
 	_refresh_all()
@@ -228,7 +229,48 @@ func _prune_dead(tiles: Array) -> void:
 			tiles.remove_at(i)
 
 
+## Sizes every tile in a row to fill as much of the row's available
+## space as possible while keeping the standard card aspect ratio and
+## fitting every tile side by side -- mirrors the card browser's
+## approach instead of a fixed pixel size, so battle tiles actually use
+## the space available (especially on wide/high-res phone screens)
+## rather than sitting small in the middle of a mostly-empty row.
+func _resize_row(row: HBoxContainer, tiles: Array) -> void:
+	if tiles.is_empty():
+		return
+
+	var separation: float = row.get_theme_constant("separation")
+	var count: int = tiles.size()
+
+	# Two candidate sizes: as big as the row's full height allows, or as
+	# big as fitting every tile side-by-side in the row's width allows.
+	# Whichever is smaller is the actual limit -- using the larger of
+	# the two would overflow the other dimension.
+	var height_from_height_limit: float = row.size.y
+	var width_from_height_limit: float = height_from_height_limit * BaseCardData.ASPECT_RATIO
+
+	var width_from_width_limit: float = (row.size.x - separation * (count - 1)) / count
+	var height_from_width_limit: float = width_from_width_limit / BaseCardData.ASPECT_RATIO
+
+	var tile_width: float
+	var tile_height: float
+	if height_from_height_limit <= height_from_width_limit:
+		tile_height = height_from_height_limit
+		tile_width = width_from_height_limit
+	else:
+		tile_width = width_from_width_limit
+		tile_height = height_from_width_limit
+
+	var tile_size := Vector2(maxf(tile_width, 40.0), maxf(tile_height, 60.0))
+	for tile in tiles:
+		tile.custom_minimum_size = tile_size
+
+
 func _refresh_all() -> void:
+	_resize_row(enemy_row, _enemy_tiles)
+	_resize_row(player_row, _player_tiles)
+	_resize_row(hand_row, _hand_tiles)
+
 	for tile in _player_tiles:
 		tile.refresh()
 	for tile in _enemy_tiles:
