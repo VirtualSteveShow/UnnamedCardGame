@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+	<!-- Placeholder project icon: rounded card silhouette. Swap for real branding once card art style is locked in. -->
+	<rect x="24" y="8" width="80" height="112" rx="12" fill="#3a3a4a" stroke="#8a8aa0" stroke-width="4"/>
+	<circle cx="64" cy="64" r="24" fill="#8a8aa0"/>
+</svg>
