@@ -24,7 +24,7 @@ const MAX_WIDTH_FRACTION := 0.9
 const ABILITY_ROW_FONT_SIZE := 24
 
 @onready var panel: Panel = $Panel
-@onready var art_rect: ColorRect = $Panel/Art
+@onready var art_rect: TextureRect = $Panel/Art
 @onready var name_label: Label = $Panel/NameLabel
 @onready var xp_bar: ProgressBar = $Panel/XpBar
 @onready var ability_list: VBoxContainer = $Panel/AbilityList
@@ -38,7 +38,7 @@ func _ready() -> void:
 
 
 func show_card(data: CardData) -> void:
-	art_rect.color = data.placeholder_color
+	art_rect.texture = data.get_display_texture()
 	name_label.text = data.card_name
 	xp_bar.value = data.xp_progress * 100.0
 

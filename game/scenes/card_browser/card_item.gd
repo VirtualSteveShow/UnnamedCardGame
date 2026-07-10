@@ -29,7 +29,7 @@ signal drag_scrolled(delta: Vector2)
 ## and release before it counts as a drag instead of a tap.
 const DRAG_CANCEL_DISTANCE := 24.0
 
-@onready var art_rect: ColorRect = $Art
+@onready var art_rect: TextureRect = $Art
 @onready var name_label: Label = $NameLabel
 @onready var xp_bar: ProgressBar = $XpBar
 
@@ -43,7 +43,7 @@ var _is_dragging := false
 
 func setup(data: CardData) -> void:
 	card_data = data
-	art_rect.color = data.placeholder_color
+	art_rect.texture = data.get_display_texture()
 	name_label.text = data.card_name
 	xp_bar.value = data.xp_progress * 100.0
 

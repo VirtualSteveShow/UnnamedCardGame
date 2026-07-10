@@ -5,3 +5,6 @@ Thumbs.db
 
 # Build output (APKs etc.) - regenerated via export, not source
 /builds/
+
+# Claude Code harness internals
+/.claude/
