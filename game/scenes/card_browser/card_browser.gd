@@ -28,7 +28,7 @@ const VERSION_LABEL_SIZE := Vector2(160.0, 44.0)
 @onready var version_label: Label = $VersionLabel
 @onready var detail_overlay: Control = $CardDetail
 
-var _card_items: Array[Button] = []
+var _card_items: Array[Control] = []
 
 
 func _ready() -> void:

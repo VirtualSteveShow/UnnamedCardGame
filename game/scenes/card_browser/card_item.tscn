@@ -2,10 +2,9 @@
 
 [ext_resource type="Script" path="res://scenes/card_browser/card_item.gd" id="1_script"]
 
-[node name="CardItem" type="Button"]
+[node name="CardItem" type="Control"]
 custom_minimum_size = Vector2(160, 224)
 layout_mode = 2
-text = ""
 script = ExtResource("1_script")
 
 [node name="Art" type="ColorRect" parent="."]
