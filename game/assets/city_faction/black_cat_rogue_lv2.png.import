@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dx33akwyxbrxt"
-path="res://.godot/imported/black_cat_brawler.png-41c6522e42fe2fcf0ac1e4ce7c733fec.ctex"
+uid="uid://8ej54prjgg62"
+path="res://.godot/imported/black_cat_rogue_lv2.png-ab0d5c0cff1a4556e6514e6aeb004574.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/city_faction/black_cat_brawler.png"
-dest_files=["res://.godot/imported/black_cat_brawler.png-41c6522e42fe2fcf0ac1e4ce7c733fec.ctex"]
+source_file="res://assets/city_faction/black_cat_rogue_lv2.png"
+dest_files=["res://.godot/imported/black_cat_rogue_lv2.png-ab0d5c0cff1a4556e6514e6aeb004574.ctex"]
 
 [params]
 
