@@ -63,7 +63,7 @@ func _ready() -> void:
 
 
 func _populate_grid() -> void:
-	for card_data in CardDatabase.get_placeholder_cards():
+	for card_data in CardDatabase.get_all_cards():
 		var item := CardItemScene.instantiate()
 		grid.add_child(item)
 		item.setup(card_data)

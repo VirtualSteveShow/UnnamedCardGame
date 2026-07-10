@@ -3,10 +3,10 @@ extends RefCounted
 ## Source of creature cards for the card browser.
 ##
 ## Once real content exists for every card (likely authored as individual
-## CardData .tres resources), this will be replaced. For now the first
-## entries carry real Flux-generated art (REAL_CREATURES below) and the
-## rest are fabricated placeholder cards, so the browser has a mix of
-## real and stand-in content to lay out.
+## CardData .tres resources), this will be replaced. For now it just
+## builds a CardData per REAL_CREATURES entry -- no-art placeholder
+## filler cards were removed from the browser once there was a real
+## enough roster to look at instead.
 ##
 ## City Faction (gritty urban night style, the game's first faction):
 ## starters get a full 3-stage arc (base -> in training -> expert) with
@@ -51,37 +51,17 @@ const REAL_CREATURES := [
 		xp = 0.0, level = 1, max_health = 6, can_evolve = false},
 ]
 
-const PLACEHOLDER_COLORS: Array[Color] = [
-	Color(0.85, 0.35, 0.35), # red
-	Color(0.35, 0.55, 0.85), # blue
-	Color(0.40, 0.75, 0.40), # green
-	Color(0.85, 0.75, 0.30), # yellow
-	Color(0.65, 0.40, 0.80), # purple
-	Color(0.85, 0.55, 0.30), # orange
-]
-
-const PLACEHOLDER_COUNT := 36
-
-static func get_placeholder_cards() -> Array[CardData]:
+static func get_all_cards() -> Array[CardData]:
 	var cards: Array[CardData] = []
-	for i in range(PLACEHOLDER_COUNT):
+	for i in range(REAL_CREATURES.size()):
+		var entry: Dictionary = REAL_CREATURES[i]
 		var card := CardData.new()
-
-		if i < REAL_CREATURES.size():
-			var entry: Dictionary = REAL_CREATURES[i]
-			card.card_name = entry.name
-			card.art_texture = load(entry.path)
-			card.xp_progress = entry.xp
-			card.level = entry.level
-			card.max_health = entry.max_health
-			card.can_evolve = entry.can_evolve
-		else:
-			card.card_name = "Creature %02d" % (i + 1)
-			card.placeholder_color = PLACEHOLDER_COLORS[i % PLACEHOLDER_COLORS.size()]
-			card.level = 1 + (i % 5)
-			# Spread placeholder XP values out deterministically so cards
-			# look varied without needing real progression data yet.
-			card.xp_progress = fmod(i * 0.37, 1.0)
+		card.card_name = entry.name
+		card.art_texture = load(entry.path)
+		card.xp_progress = entry.xp
+		card.level = entry.level
+		card.max_health = entry.max_health
+		card.can_evolve = entry.can_evolve
 
 		var strike := CardAbility.new()
 		strike.ability_name = "Strike"
@@ -101,7 +81,7 @@ static func get_placeholder_cards() -> Array[CardData]:
 ## Finds a single real creature by its display name (e.g. for hardcoding
 ## a test battle matchup). Returns null if not found.
 static func get_real_creature_by_name(creature_name: String) -> CardData:
-	for card in get_placeholder_cards():
+	for card in get_all_cards():
 		if card.card_name == creature_name:
 			return card
 	return null
