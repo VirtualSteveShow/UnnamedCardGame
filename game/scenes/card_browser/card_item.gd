@@ -31,7 +31,6 @@ const DRAG_CANCEL_DISTANCE := 24.0
 
 @onready var art_rect: ColorRect = $Art
 @onready var name_label: Label = $NameLabel
-@onready var level_label: Label = $LevelLabel
 @onready var xp_bar: ProgressBar = $XpBar
 
 var card_data: CardData
@@ -46,7 +45,6 @@ func setup(data: CardData) -> void:
 	card_data = data
 	art_rect.color = data.placeholder_color
 	name_label.text = data.card_name
-	level_label.text = "Lv %d" % data.level
 	xp_bar.value = data.xp_progress * 100.0
 
 

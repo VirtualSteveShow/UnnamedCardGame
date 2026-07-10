@@ -1,6 +1,6 @@
 extends Control
 ## Full-screen overlay showing a single card's details: enlarged art,
-## name, level, XP progress, and its full ability list with energy costs.
+## name, XP progress, and its full ability list with energy costs.
 ##
 ## Lives inside card_browser.tscn as a hidden overlay (start visibility
 ## is set to false directly on this scene's root node) and is shown on
@@ -9,19 +9,22 @@ extends Control
 ## confirmation is needed to dismiss it.
 ##
 ## The panel's own size follows CardData.ASPECT_RATIO (same shape as the
-## grid cards, just bigger); every row inside it (art/name/level/xp/
-## abilities/close button) is positioned with fractional anchors in the
-## .tscn, so resizing the panel here is all that's needed for the whole
-## layout to scale together -- no separate fixed-pixel "chrome" stacked
-## below the art to throw the overall shape off.
+## grid cards, just bigger); every row inside it (art/name/xp/abilities/
+## close button) is positioned with fractional anchors in the .tscn, so
+## resizing the panel here is all that's needed for the whole layout to
+## scale together -- no separate fixed-pixel "chrome" stacked below the
+## art to throw the overall shape off.
 
 const MAX_HEIGHT_FRACTION := 0.88
 const MAX_WIDTH_FRACTION := 0.9
 
+## Ability rows are built at runtime (see _build_ability_row), so their
+## font size has to be set in code rather than the .tscn.
+const ABILITY_ROW_FONT_SIZE := 24
+
 @onready var panel: Panel = $Panel
 @onready var art_rect: ColorRect = $Panel/Art
 @onready var name_label: Label = $Panel/NameLabel
-@onready var level_label: Label = $Panel/LevelLabel
 @onready var xp_bar: ProgressBar = $Panel/XpBar
 @onready var ability_list: VBoxContainer = $Panel/AbilityList
 @onready var close_button: Button = $Panel/CloseButton
@@ -38,7 +41,6 @@ func _ready() -> void:
 func show_card(data: CardData) -> void:
 	art_rect.color = data.placeholder_color
 	name_label.text = data.card_name
-	level_label.text = "Level %d" % data.level
 	xp_bar.value = data.xp_progress * 100.0
 
 	# Clear any ability rows left over from whichever card was shown
@@ -57,10 +59,12 @@ func _build_ability_row(ability: CardAbility) -> HBoxContainer:
 	var name_lbl := Label.new()
 	name_lbl.text = ability.ability_name
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lbl.add_theme_font_size_override("font_size", ABILITY_ROW_FONT_SIZE)
 	row.add_child(name_lbl)
 
 	var cost_lbl := Label.new()
 	cost_lbl.text = "%d energy" % ability.energy_cost
+	cost_lbl.add_theme_font_size_override("font_size", ABILITY_ROW_FONT_SIZE)
 	row.add_child(cost_lbl)
 
 	return row
