@@ -16,7 +16,7 @@ const PLACEHOLDER_COLORS: Array[Color] = [
 	Color(0.85, 0.55, 0.30), # orange
 ]
 
-const PLACEHOLDER_COUNT := 12
+const PLACEHOLDER_COUNT := 36
 
 static func get_placeholder_cards() -> Array[CardData]:
 	var cards: Array[CardData] = []

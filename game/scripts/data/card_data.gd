@@ -8,6 +8,11 @@ extends Resource
 ## standing in for real Flux-generated art, and a list of abilities with
 ## their energy costs.
 
+## Standard trading-card ratio (2.5in x 3.5in, e.g. MTG/Pokemon TCG),
+## width:height. Shared by the grid and detail view so a card reads as
+## the same shape everywhere it's shown.
+const ASPECT_RATIO := 2.5 / 3.5
+
 ## Display name shown on the card.
 @export var card_name: String = "Unnamed Creature"
 

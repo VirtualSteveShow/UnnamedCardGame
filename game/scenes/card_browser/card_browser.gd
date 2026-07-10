@@ -5,20 +5,26 @@ extends Control
 
 const CardItemScene := preload("res://scenes/card_browser/card_item.tscn")
 
-## Standard trading-card ratio (2.5in x 3.5in, e.g. MTG/Pokemon TCG),
-## width:height. Cards are sized off this ratio rather than a fixed
-## pixel size so they keep a recognizable "card" silhouette at any
-## screen size.
-const CARD_ASPECT_RATIO := 2.5 / 3.5
-
 ## How many card rows should be visible in the scroll area at once;
 ## anything beyond that is reached by scrolling rather than shrinking
 ## cards further to cram more rows in.
 const VISIBLE_ROWS := 2
 
+## Minimum edge padding applied on every side even where there's no
+## camera cutout, so the layout still looks visually balanced instead
+## of lopsided (padded only on whichever edge has a cutout).
+const BASE_EDGE_PADDING := 24.0
+
+## Extra vertical space reserved above the grid for the title text,
+## on top of the top edge padding.
+const TITLE_BAR_HEIGHT := 50.0
+
+const VERSION_LABEL_SIZE := Vector2(160.0, 44.0)
+
 @onready var scroll_container: ScrollContainer = $ScrollContainer
 @onready var grid: GridContainer = $ScrollContainer/GridContainer
 @onready var title_label: Label = $TitleLabel
+@onready var version_bg: ColorRect = $VersionBg
 @onready var version_label: Label = $VersionLabel
 @onready var detail_overlay: Control = $CardDetail
 
@@ -50,37 +56,50 @@ func _on_viewport_resized() -> void:
 
 
 ## Phones with camera cutouts/punch-holes report a "safe area" smaller
-## than the full screen. We inset the edge-anchored UI by the gap
-## between the two so cards and text never sit under the cutout, no
-## matter which edge it's on or how the device is rotated.
+## than the full screen. We inset the edge-anchored UI by at least that
+## gap so cards/text never sit under the cutout -- but never by *less*
+## than BASE_EDGE_PADDING either, so edges without a cutout still get a
+## matching margin instead of looking unpadded next to the cutout side.
 func _apply_safe_area_padding() -> void:
 	var screen_size: Vector2i = DisplayServer.screen_get_size()
-	if screen_size.x <= 0 or screen_size.y <= 0:
-		return
+	var left := BASE_EDGE_PADDING
+	var right := BASE_EDGE_PADDING
+	var top := BASE_EDGE_PADDING
+	var bottom := BASE_EDGE_PADDING
 
-	var safe_area: Rect2i = DisplayServer.get_display_safe_area()
-	var viewport_size: Vector2 = get_viewport_rect().size
+	if screen_size.x > 0 and screen_size.y > 0:
+		var safe_area: Rect2i = DisplayServer.get_display_safe_area()
+		var viewport_size: Vector2 = get_viewport_rect().size
 
-	# Express the insets as a fraction of the physical screen, then scale
-	# into our viewport's own coordinate space -- this holds regardless
-	# of stretch mode or device pixel ratio.
-	var left: float = (float(safe_area.position.x) / screen_size.x) * viewport_size.x
-	var right: float = (float(screen_size.x - (safe_area.position.x + safe_area.size.x)) / screen_size.x) * viewport_size.x
-	var top: float = (float(safe_area.position.y) / screen_size.y) * viewport_size.y
-	var bottom: float = (float(screen_size.y - (safe_area.position.y + safe_area.size.y)) / screen_size.y) * viewport_size.y
+		# Express the cutout insets as a fraction of the physical screen,
+		# then scale into our viewport's own coordinate space -- this
+		# holds regardless of stretch mode or device pixel ratio.
+		var cutout_left: float = (float(safe_area.position.x) / screen_size.x) * viewport_size.x
+		var cutout_right: float = (float(screen_size.x - (safe_area.position.x + safe_area.size.x)) / screen_size.x) * viewport_size.x
+		var cutout_top: float = (float(safe_area.position.y) / screen_size.y) * viewport_size.y
+		var cutout_bottom: float = (float(screen_size.y - (safe_area.position.y + safe_area.size.y)) / screen_size.y) * viewport_size.y
 
-	title_label.offset_left = 20.0 + left
-	title_label.offset_top = 14.0 + top
+		left = maxf(BASE_EDGE_PADDING, cutout_left)
+		right = maxf(BASE_EDGE_PADDING, cutout_right)
+		top = maxf(BASE_EDGE_PADDING, cutout_top)
+		bottom = maxf(BASE_EDGE_PADDING, cutout_bottom)
 
-	scroll_container.offset_left = 8.0 + left
-	scroll_container.offset_right = -8.0 - right
-	scroll_container.offset_top = 64.0 + top
-	scroll_container.offset_bottom = -8.0 - bottom
+	title_label.offset_left = left
+	title_label.offset_top = top
 
-	version_label.offset_right = -12.0 - right
-	version_label.offset_left = -160.0 - right
-	version_label.offset_bottom = -12.0 - bottom
-	version_label.offset_top = -48.0 - bottom
+	scroll_container.offset_left = left
+	scroll_container.offset_right = -right
+	scroll_container.offset_top = top + TITLE_BAR_HEIGHT
+	scroll_container.offset_bottom = -bottom
+
+	version_label.offset_right = -right
+	version_label.offset_left = -right - VERSION_LABEL_SIZE.x
+	version_label.offset_bottom = -bottom
+	version_label.offset_top = -bottom - VERSION_LABEL_SIZE.y
+	version_bg.offset_right = version_label.offset_right
+	version_bg.offset_left = version_label.offset_left
+	version_bg.offset_bottom = version_label.offset_bottom
+	version_bg.offset_top = version_label.offset_top
 
 
 ## Sizes every card so exactly VISIBLE_ROWS fit in the scroll area's
@@ -93,7 +112,7 @@ func _update_card_layout() -> void:
 	var available_height: float = scroll_container.size.y
 	var card_height: float = (available_height - v_separation * (VISIBLE_ROWS - 1)) / VISIBLE_ROWS
 	card_height = maxf(card_height, 80.0)
-	var card_width: float = card_height * CARD_ASPECT_RATIO
+	var card_width: float = card_height * CardData.ASPECT_RATIO
 
 	for item in _card_items:
 		item.custom_minimum_size = Vector2(card_width, card_height)
