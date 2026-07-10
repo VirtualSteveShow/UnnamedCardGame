@@ -2,3 +2,6 @@
 .DS_Store
 Thumbs.db
 *.tmp
+
+# Build output (APKs etc.) - regenerated via export, not source
+/builds/
