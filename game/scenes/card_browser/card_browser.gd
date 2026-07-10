@@ -38,6 +38,14 @@ var _card_items: Array[Control] = []
 ## the next event.
 var _scroll_remainder := 0.0
 
+## Touch motion can deliver many samples between rendered frames, and
+## each write to scroll_vertical forces the grid to re-layout. Writing
+## on every single input event was re-laying-out all 36 cards dozens of
+## times per visual frame -- the actual source of the choppiness/flicker.
+## Pending drag motion is queued here and applied once per frame in
+## _process() instead, decoupling input sampling rate from layout rate.
+var _pending_scroll_delta := 0.0
+
 
 func _ready() -> void:
 	var version: String = ProjectSettings.get_setting("application/config/version", "0.0.0")
@@ -138,10 +146,21 @@ func _on_card_selected(card_data: CardData) -> void:
 ## Cards forward their own drag movement here instead of relying on it
 ## reaching the ScrollContainer on its own, since a Control sitting on
 ## top of a ScrollContainer swallowing the hit turned out to block that
-## in practice. Content follows the finger, so the scroll offset moves
-## opposite the drag delta.
+## in practice. Just queues the motion -- _process() is what actually
+## applies it, once per frame.
 func _on_card_drag_scrolled(delta: Vector2) -> void:
-	_scroll_remainder += delta.y
+	_pending_scroll_delta += delta.y
+
+
+func _process(_delta: float) -> void:
+	if _pending_scroll_delta == 0.0:
+		return
+
+	# Content follows the finger, so the scroll offset moves opposite
+	# the accumulated drag delta.
+	_scroll_remainder += _pending_scroll_delta
+	_pending_scroll_delta = 0.0
 	var whole_pixels := roundi(_scroll_remainder)
 	_scroll_remainder -= whole_pixels
-	scroll_container.scroll_vertical -= whole_pixels
+	if whole_pixels != 0:
+		scroll_container.scroll_vertical -= whole_pixels
