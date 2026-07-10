@@ -108,47 +108,58 @@ prove out how non-creature cards read. See `ItemCardData`/`ItemDatabase`.
   `max_health` stat (shown on the card detail view) to give healing/damage
   something to act on once battle systems exist.
 
-## Combat (second version built)
+## Combat (third version built)
 
-Team-vs-team battlefield, turn-based, energy-gated abilities -- Slay the
-Spire's core loop, but with a real field of cards on each side (not a single
-1v1 duel, which was the first version and got corrected after seeing it in
-practice -- the expectation was always multiple creature cards per side with
-target selection, closer to a TCG board than a single active creature).
+Deck/hand/discard on top of the team battlefield -- Slay the Spire's actual
+economy, not just its turn structure. One unified deck (creature cards and
+item cards mixed together, per design direction -- not two separate decks),
+drawn into a hand each turn. Playing a creature card from hand summons it
+onto your field (which now starts *empty* at battle start and grows as you
+play cards, rather than a fixed pre-populated team); playing an item card
+resolves its effect and goes to discard. The enemy side still has no deck of
+its own -- fixed roster already in play, same as Slay the Spire's own
+enemies vs. the player's deck.
 
-See `BattleState` (pure logic, no UI) + `BattleCombatant` (live per-battle
-HP/block wrapper around a CardData, since CardData itself is static/shared
-with the browser) for the rules, and `scenes/battle/battle.gd` +
-`battle_combatant_tile.gd` (the reusable tappable card used for both rows)
-for the presentation layer over it.
+See `BattleState` (deck/hand/discard + team logic) + `BattleCombatant` (live
+per-battle HP/block wrapper around a CardData/ItemCardData) for the rules;
+`scenes/battle/battle.gd` + the three tile scenes (`battle_combatant_tile`
+for the field, `battle_hand_card_tile` for hand cards) for the presentation
+layer.
 
-- **3v3 test matchup**: player team Alley Kitten/Raccoon/Crow vs. enemy team
-  Sewer Rat/Cockroach/Opossum. Team size isn't hardcoded to 3 anywhere in
-  BattleState -- it's just what the current test entry point passes in.
-- **Tap flow**: tap one of your own creatures to select it as the acting
-  creature (highlighted) -> its abilities appear as buttons -> tap an
-  ability (block-only abilities resolve immediately; damaging ones wait for
-  a target) -> tap an enemy creature to resolve the attack against it.
-- **3 energy per turn** (`BattleState.ENERGY_PER_TURN`), shared across your
-  whole team -- not per-creature. Refills at the start of each player turn.
-- **Block** absorbs damage before HP does, and clears at the start of its
-  owner's *own next turn* (not immediately when the turn that granted it
-  ends) -- Slay the Spire's convention, so it still protects against the
-  very next incoming hit.
-- Enemy turn is fully automatic: every surviving enemy creature clears its
-  own block, then uses one random ability of its own against a random living
-  player creature, in team order. No player-facing enemy AI decisions yet,
-  and no animation/pacing -- a whole enemy turn resolves instantly.
-- Battle ends the instant one whole team is fully defeated (checked
-  enemy-first, then player, after every hit).
-- Verified computationally (not just that it loads): a targeted Strike only
-  damaged the chosen enemy and left the other two untouched, block correctly
-  reduced a follow-up hit to 0, and a full simulated battle resolved cleanly
-  with the right winner.
-- **Entry point**: a temporary "⚔ Battle Test" button in the card browser's
-  top bar jumps straight into the hardcoded matchup above via
-  `get_tree().change_scene_to_file()`. No "choose your team" flow exists yet
-  -- that's needed before this is a real feature rather than a test harness.
+- **BaseCardData.energy_cost** (new): the cost to *play* a card from hand --
+  summon a creature or use an item. Separate from a creature's own in-play
+  ability costs (`CardAbility.energy_cost`), spent on a later turn once
+  already summoned. Same energy pool pays for both.
+- **Hand size 5**, Slay the Spire's convention: unplayed hand cards discard
+  at end of turn (don't carry over), a fresh hand is drawn at the start of
+  the next one. When the draw pile empties mid-draw, the discard pile
+  shuffles back into it automatically.
+- **Healing wired up**: playing Back-Alley Bandage on one of your own
+  creatures restores HP, capped at its max.
+- **Capture wired up**: playing a capture card on an enemy at or below its
+  HP% threshold removes that enemy from the fight (same "leaves play"
+  mechanic as a normal defeat) and logs a capture message; below the
+  threshold, the card is still consumed but the attempt just fails. Not yet
+  connected to any persistent collection outside battle -- captured
+  creatures don't currently go anywhere afterward.
+- **Creatures/enemies leave play when defeated**: BattleState never removes
+  a dead combatant from its own team arrays (targeting/turn logic already
+  skips them via `is_alive()`), but battle.gd removes that combatant's field
+  tile the moment it dies, so the row visually shrinks instead of just
+  graying the card out. A defeated creature's card returns to the discard
+  pile at that point (modeling "the card comes back to you, just battered").
+- **Test deck**: 4 creature cards (2x Alley Kitten, Raccoon, Crow) + 4 item
+  cards (Alley Snare, Weighted Net, 2x Back-Alley Bandage) vs. the same
+  enemy roster as before (Sewer Rat/Cockroach/Opossum).
+- Verified computationally: initial draw size, summoning correctly costs
+  energy and does *not* discard the card, a defeated summon's card *does*
+  land in discard, healing heals and consumes the item, capture at low HP
+  succeeds and removes the target, end-of-turn correctly discards the
+  leftover hand and draws a fresh one -- and the reshuffle-on-empty path
+  fired naturally as a side effect of the same test run.
+- **Entry point unchanged**: the "⚔ Battle Test" button in the card
+  browser's top bar. Still no real "build your deck" flow -- the deck
+  composition above is hardcoded in battle.gd.
 
 ## Open questions / not yet decided
 
@@ -157,13 +168,13 @@ for the presentation layer over it.
 - Per-creature ability kits (right now every card shares the same generic
   Strike/Guard pair -- no differentiation between a Rogue and a Brawler in
   actual combat yet, even though the art and flavor clearly diverge).
-- How team size/composition actually gets decided (currently a hardcoded
-  3v3 test matchup, not tied to an actual deck/roster-selection flow).
-- Capture cards are designed (HP% tiers, one use per battle) but not wired
-  into battle logic yet -- next natural extension of BattleState.
+- A real deck-building flow (currently a hardcoded test deck in battle.gd,
+  not tied to an actual collection/deckbuilding screen).
+- Captured creatures don't go anywhere yet -- no persistent player
+  collection outside of a single battle for them to join.
 - Actual evolution *mechanic* (leveling up / choosing a path in real gameplay,
   vs. today's separate-CardData-per-stage placeholder approach).
-- A real "choose your team, then fight" flow to replace the hardcoded Battle
-  Test matchup.
 - Enemy turn has no pacing/animation -- resolves instantly, which may feel
-  abrupt with a 3-creature team all acting in the same instant.
+  abrupt with a multi-creature team all acting in the same instant.
+- No summoning sickness -- a creature can act the same turn it's summoned,
+  if energy allows. Simple by design for now, worth revisiting for balance.

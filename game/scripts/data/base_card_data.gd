@@ -22,6 +22,13 @@ const ASPECT_RATIO := 2.5 / 3.5
 ## distinguishable before real art exists (art_texture is null).
 @export var placeholder_color: Color = Color.WHITE
 
+## Energy cost to play this card from hand in battle -- summoning a
+## creature card onto the field, or using an item card's effect.
+## Separate from a creature's own in-play ability costs (CardAbility.
+## energy_cost), which are spent on a later turn once it's already
+## summoned.
+@export var energy_cost: int = 1
+
 
 ## Shared by every card's grid tile and detail view: returns art_texture
 ## if set, otherwise a flat-color texture built from placeholder_color,
