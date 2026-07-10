@@ -108,14 +108,45 @@ prove out how non-creature cards read. See `ItemCardData`/`ItemDatabase`.
   `max_health` stat (shown on the card detail view) to give healing/damage
   something to act on once battle systems exist.
 
+## Combat (first version built)
+
+Single 1v1 duel, turn-based, energy-gated abilities -- Slay the Spire's core
+loop, scoped down to one creature per side (no switching/bench/capture
+integration yet, that's next). See `BattleState` (pure logic, no UI) and
+`scenes/battle/battle.gd` (presentation layer over it).
+
+- **3 energy per turn** (`BattleState.ENERGY_PER_TURN`), refills at the start
+  of each player turn.
+- Abilities now carry real effects: `CardAbility.damage` and `.block`. Strike
+  deals damage scaled to its energy cost (cost x3); Guard grants 3 block.
+  Every creature currently gets the same generic Strike/Guard pair --
+  per-creature ability kits are a later pass.
+- **Block** absorbs damage before HP does, and clears at the start of its
+  owner's *own next turn* (not immediately when the turn that granted it
+  ends) -- same convention as Slay the Spire, so it still protects against
+  the very next incoming hit.
+- Enemy turn is fully automatic: clears its block, then uses one random
+  ability of its own. No player-facing enemy AI decisions yet.
+- Battle ends the instant either side's HP hits 0; checked enemy-first, then
+  player, each time damage lands.
+- **Entry point**: a temporary "⚔ Battle Test" button in the card browser's
+  top bar jumps straight into a hardcoded matchup (Alley Kitten vs. Sewer
+  Rat) via `get_tree().change_scene_to_file()`. No "choose your creature"
+  flow exists yet -- that's needed before this is a real feature rather than
+  a test harness.
+
 ## Open questions / not yet decided
 
 - How many starter creatures eventually, and how they're chosen (currently
   just the City Faction black cat).
-- Energy system details (regen rate, max energy, per-turn vs per-encounter).
-- Capture cards are designed (HP% tiers, one use per battle -- see City
-  Faction section) but not wired into any actual battle logic yet.
+- Per-creature ability kits (right now every card shares the same generic
+  Strike/Guard pair -- no differentiation between a Rogue and a Brawler in
+  actual combat yet, even though the art and flavor clearly diverge).
+- Multi-creature battles / switching (bench management, an actual "active
+  creature" concept beyond the current hardcoded 1v1).
+- Capture cards are designed (HP% tiers, one use per battle) but not wired
+  into battle logic yet -- next natural extension of BattleState.
 - Actual evolution *mechanic* (leveling up / choosing a path in real gameplay,
   vs. today's separate-CardData-per-stage placeholder approach).
-- Damage/HP mechanics in general -- `max_health` exists on every creature
-  card now but nothing subtracts from it yet.
+- A real "choose your starter, then fight" flow to replace the hardcoded
+  Battle Test matchup.

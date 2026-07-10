@@ -25,6 +25,7 @@ const VERSION_LABEL_SIZE := Vector2(160.0, 44.0)
 @onready var scroll_container: ScrollContainer = $ScrollContainer
 @onready var grid: GridContainer = $ScrollContainer/GridContainer
 @onready var title_label: Label = $TitleLabel
+@onready var battle_test_button: Button = $BattleTestButton
 @onready var version_bg: ColorRect = $VersionBg
 @onready var version_label: Label = $VersionLabel
 @onready var detail_overlay: Control = $CardDetail
@@ -54,6 +55,8 @@ func _ready() -> void:
 	version_label.text = "v%s" % version
 
 	_populate_grid()
+
+	battle_test_button.pressed.connect(_on_battle_test_pressed)
 
 	get_viewport().size_changed.connect(_on_viewport_resized)
 	_on_viewport_resized()
@@ -117,6 +120,11 @@ func _apply_safe_area_padding() -> void:
 	title_label.offset_left = left
 	title_label.offset_top = top
 
+	battle_test_button.offset_right = -right
+	battle_test_button.offset_left = -right - 160.0
+	battle_test_button.offset_top = top
+	battle_test_button.offset_bottom = top + 40.0
+
 	scroll_container.offset_left = left
 	scroll_container.offset_right = -right
 	scroll_container.offset_top = top + TITLE_BAR_HEIGHT
@@ -158,6 +166,13 @@ func _on_card_selected(card_data: CardData) -> void:
 
 func _on_item_selected(item_data: ItemCardData) -> void:
 	item_detail_overlay.show_item(item_data)
+
+
+## Temporary entry point into the first combat prototype -- jumps
+## straight into a hardcoded test matchup (see battle.gd). A real
+## "pick your creature, then fight" flow doesn't exist yet.
+func _on_battle_test_pressed() -> void:
+	get_tree().change_scene_to_file("res://scenes/battle/battle.tscn")
 
 
 ## Cards forward their own drag movement here instead of relying on it

@@ -86,11 +86,22 @@ static func get_placeholder_cards() -> Array[CardData]:
 		var strike := CardAbility.new()
 		strike.ability_name = "Strike"
 		strike.energy_cost = 1 + (i % 3)
+		strike.damage = strike.energy_cost * 3
 
 		var guard := CardAbility.new()
 		guard.ability_name = "Guard"
 		guard.energy_cost = 1
+		guard.block = 3
 
 		card.abilities = [strike, guard]
 		cards.append(card)
 	return cards
+
+
+## Finds a single real creature by its display name (e.g. for hardcoding
+## a test battle matchup). Returns null if not found.
+static func get_real_creature_by_name(creature_name: String) -> CardData:
+	for card in get_placeholder_cards():
+		if card.card_name == creature_name:
+			return card
+	return null

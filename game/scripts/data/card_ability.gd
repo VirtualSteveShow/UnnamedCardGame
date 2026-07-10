@@ -1,8 +1,17 @@
 class_name CardAbility
 extends Resource
-## A single creature ability: just a name and the energy cost required to
-## use it for now. Real effects (damage, status, etc.) will be added once
-## the battle system exists.
+## A single creature ability: a name, the energy cost required to use it,
+## and its effect. Kept intentionally simple for the first version of
+## combat -- an ability either deals damage, grants block, or both.
+## Status effects, multi-target, etc. can extend this later.
 
 @export var ability_name: String = "Ability"
 @export var energy_cost: int = 1
+
+## Damage dealt to the opposing creature when this ability is used.
+@export var damage: int = 0
+
+## Block granted to the user; reduces the next hit taken before combat
+## resets it back to 0 at the start of the user's following turn (same
+## convention Slay the Spire uses).
+@export var block: int = 0
