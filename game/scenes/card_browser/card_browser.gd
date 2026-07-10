@@ -47,6 +47,7 @@ func _populate_grid() -> void:
 		grid.add_child(item)
 		item.setup(card_data)
 		item.card_selected.connect(_on_card_selected)
+		item.drag_scrolled.connect(_on_card_drag_scrolled)
 		_card_items.append(item)
 
 
@@ -124,3 +125,12 @@ func _update_card_layout() -> void:
 
 func _on_card_selected(card_data: CardData) -> void:
 	detail_overlay.show_card(card_data)
+
+
+## Cards forward their own drag movement here instead of relying on it
+## reaching the ScrollContainer on its own, since a Control sitting on
+## top of a ScrollContainer swallowing the hit turned out to block that
+## in practice. Content follows the finger, so the scroll offset moves
+## opposite the drag delta.
+func _on_card_drag_scrolled(delta: Vector2) -> void:
+	scroll_container.scroll_vertical -= roundi(delta.y)
