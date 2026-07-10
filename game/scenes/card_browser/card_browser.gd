@@ -30,6 +30,14 @@ const VERSION_LABEL_SIZE := Vector2(160.0, 44.0)
 
 var _card_items: Array[Control] = []
 
+## ScrollContainer.scroll_vertical is an int, but touch motion arrives as
+## a stream of many sub-pixel deltas. Rounding each one individually
+## drops almost all of them (round(0.4) == 0 every time), making drags
+## feel far slower than the actual finger movement. Accumulating the
+## remainder here instead means no movement gets lost, just deferred to
+## the next event.
+var _scroll_remainder := 0.0
+
 
 func _ready() -> void:
 	var version: String = ProjectSettings.get_setting("application/config/version", "0.0.0")
@@ -133,4 +141,7 @@ func _on_card_selected(card_data: CardData) -> void:
 ## in practice. Content follows the finger, so the scroll offset moves
 ## opposite the drag delta.
 func _on_card_drag_scrolled(delta: Vector2) -> void:
-	scroll_container.scroll_vertical -= roundi(delta.y)
+	_scroll_remainder += delta.y
+	var whole_pixels := roundi(_scroll_remainder)
+	_scroll_remainder -= whole_pixels
+	scroll_container.scroll_vertical -= whole_pixels
