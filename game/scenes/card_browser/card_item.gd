@@ -9,6 +9,15 @@ extends Control
 ## scroll drag and is forwarded frame-by-frame via drag_scrolled so
 ## card_browser.gd can scroll the list on our behalf. Same "touch slop"
 ## behavior any native scrollable list uses.
+##
+## Uses event.global_position (viewport space) rather than event.position
+## (local to this Control) for all of this. This card's on-screen
+## position shifts every time the list scrolls -- it's a grid child --
+## so its *local* coordinate frame moves as a direct result of the very
+## scrolling we're driving from these events. Measuring in local space
+## fed our own previous scroll correction back into the next delta
+## calculation every frame, corrupting it; global_position is viewport
+## space and doesn't move just because this card did.
 
 signal card_selected(card_data: CardData)
 ## Emitted with the pointer's movement (this frame) once a press has
@@ -16,9 +25,8 @@ signal card_selected(card_data: CardData)
 ## ScrollContainer directly.
 signal drag_scrolled(delta: Vector2)
 
-## How far (px, in this Control's local space) the pointer can move
-## between press and release before it counts as a drag instead of a
-## tap.
+## How far (px, in viewport space) the pointer can move between press
+## and release before it counts as a drag instead of a tap.
 const DRAG_CANCEL_DISTANCE := 24.0
 
 @onready var art_rect: ColorRect = $Art
@@ -47,16 +55,16 @@ func _gui_input(event: InputEvent) -> void:
 		if event.pressed:
 			_is_pressed = true
 			_is_dragging = false
-			_press_position = event.position
-			_last_position = event.position
+			_press_position = event.global_position
+			_last_position = event.global_position
 		elif _is_pressed:
 			_is_pressed = false
 			if not _is_dragging:
 				card_selected.emit(card_data)
 			_is_dragging = false
 	elif event is InputEventMouseMotion and _is_pressed:
-		if not _is_dragging and event.position.distance_to(_press_position) > DRAG_CANCEL_DISTANCE:
+		if not _is_dragging and event.global_position.distance_to(_press_position) > DRAG_CANCEL_DISTANCE:
 			_is_dragging = true
 		if _is_dragging:
-			drag_scrolled.emit(event.position - _last_position)
-		_last_position = event.position
+			drag_scrolled.emit(event.global_position - _last_position)
+		_last_position = event.global_position
