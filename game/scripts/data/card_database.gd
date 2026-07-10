@@ -8,16 +8,23 @@ extends RefCounted
 ## the rest are fabricated placeholder cards, so the browser has a mix
 ## of real and stand-in content to lay out.
 
-## Real creature art generated so far: [display name, texture path].
-## Add to this as more art gets finished; anything beyond this list
-## still falls back to a placeholder-color swatch.
+## Real creature art generated so far: [display name, texture path, xp
+## progress]. Add to this as more art gets finished; anything beyond
+## this list still falls back to a placeholder-color swatch.
+##
+## The original style-test roster (fox/owl/turtle/wolf/dragon/rabbit)
+## was removed once the City Faction (gritty urban night style) replaced
+## it as the actual first faction -- see game/assets/city_faction/.
+##
+## City Faction starter: a stray black cat with two evolution paths,
+## Rogue and Brawler. Evolution mechanics aren't built yet -- these are
+## just the three art pieces as separate cards for now, so the empty
+## (barely-started) vs. full (just-evolved) XP bar hints at where each
+## one sits without needing real progression logic yet.
 const REAL_CREATURES := [
-	["Fox", "res://assets/creatures/fox.png"],
-	["Owl", "res://assets/creatures/owl.png"],
-	["Turtle", "res://assets/creatures/turtle.png"],
-	["Wolf", "res://assets/creatures/wolf.png"],
-	["Dragon", "res://assets/creatures/dragon.png"],
-	["Rabbit", "res://assets/creatures/rabbit.png"],
+	["Black Cat", "res://assets/city_faction/black_cat_base.png", 0.1],
+	["Black Cat (Rogue)", "res://assets/city_faction/black_cat_rogue.png", 1.0],
+	["Black Cat (Brawler)", "res://assets/city_faction/black_cat_brawler.png", 1.0],
 ]
 
 const PLACEHOLDER_COLORS: Array[Color] = [
@@ -36,16 +43,17 @@ static func get_placeholder_cards() -> Array[CardData]:
 	for i in range(PLACEHOLDER_COUNT):
 		var card := CardData.new()
 		card.level = 1 + (i % 5)
-		# Spread XP values out deterministically so cards look varied
-		# without needing real progression data yet.
-		card.xp_progress = fmod(i * 0.37, 1.0)
 
 		if i < REAL_CREATURES.size():
 			card.card_name = REAL_CREATURES[i][0]
 			card.art_texture = load(REAL_CREATURES[i][1])
+			card.xp_progress = REAL_CREATURES[i][2]
 		else:
 			card.card_name = "Creature %02d" % (i + 1)
 			card.placeholder_color = PLACEHOLDER_COLORS[i % PLACEHOLDER_COLORS.size()]
+			# Spread placeholder XP values out deterministically so cards
+			# look varied without needing real progression data yet.
+			card.xp_progress = fmod(i * 0.37, 1.0)
 
 		var strike := CardAbility.new()
 		strike.ability_name = "Strike"

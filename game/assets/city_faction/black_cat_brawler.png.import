@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://x2bsi3usf27j"
-path="res://.godot/imported/wolf.png-c76275f7b28efa54bf0300148b656828.ctex"
+uid="uid://dx33akwyxbrxt"
+path="res://.godot/imported/black_cat_brawler.png-41c6522e42fe2fcf0ac1e4ce7c733fec.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/creatures/wolf.png"
-dest_files=["res://.godot/imported/wolf.png-c76275f7b28efa54bf0300148b656828.ctex"]
+source_file="res://assets/city_faction/black_cat_brawler.png"
+dest_files=["res://.godot/imported/black_cat_brawler.png-41c6522e42fe2fcf0ac1e4ce7c733fec.ctex"]
 
 [params]
 
