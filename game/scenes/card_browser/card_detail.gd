@@ -4,16 +4,17 @@ extends Control
 ##
 ## Lives inside card_browser.tscn as a hidden overlay (start visibility
 ## is set to false directly on this scene's root node) and is shown on
-## demand via show_card(). Tapping the dimmed backdrop or the close
-## button hides it again -- viewing a card is non-destructive, so no
-## confirmation is needed to dismiss it.
+## demand via show_card(). Tapping the dimmed backdrop hides it again --
+## viewing a card is non-destructive, so no confirmation is needed to
+## dismiss it, and there's no separate close button.
 ##
 ## The panel's own size follows CardData.ASPECT_RATIO (same shape as the
-## grid cards, just bigger); every row inside it (art/name/xp/abilities/
-## close button) is positioned with fractional anchors in the .tscn, so
-## resizing the panel here is all that's needed for the whole layout to
-## scale together -- no separate fixed-pixel "chrome" stacked below the
-## art to throw the overall shape off.
+## grid cards, just bigger). The Art node uses the exact same fractional
+## anchors as the grid's Art node so the art reads as the same shape in
+## both places instead of subtly warping between them; the rest of the
+## rows (name/xp/abilities) are positioned with fractional anchors too,
+## so resizing the panel here is all that's needed for the whole layout
+## to scale together.
 
 const MAX_HEIGHT_FRACTION := 0.88
 const MAX_WIDTH_FRACTION := 0.9
@@ -27,12 +28,10 @@ const ABILITY_ROW_FONT_SIZE := 24
 @onready var name_label: Label = $Panel/NameLabel
 @onready var xp_bar: ProgressBar = $Panel/XpBar
 @onready var ability_list: VBoxContainer = $Panel/AbilityList
-@onready var close_button: Button = $Panel/CloseButton
 @onready var dim_background: ColorRect = $DimBackground
 
 
 func _ready() -> void:
-	close_button.pressed.connect(_on_close_pressed)
 	dim_background.gui_input.connect(_on_dim_background_gui_input)
 	get_viewport().size_changed.connect(_update_panel_size)
 	_update_panel_size()
@@ -85,10 +84,6 @@ func _update_panel_size() -> void:
 	panel.offset_right = panel_width / 2.0
 	panel.offset_top = -panel_height / 2.0
 	panel.offset_bottom = panel_height / 2.0
-
-
-func _on_close_pressed() -> void:
-	visible = false
 
 
 func _on_dim_background_gui_input(event: InputEvent) -> void:

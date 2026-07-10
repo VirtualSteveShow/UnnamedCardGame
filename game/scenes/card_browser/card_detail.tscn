@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scenes/card_browser/card_detail.gd" id="1_script"]
 
@@ -8,6 +8,9 @@ corner_radius_top_left = 12
 corner_radius_top_right = 12
 corner_radius_bottom_right = 12
 corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_xp_fill"]
+bg_color = Color(0.5, 0.78, 1, 1)
 
 [node name="CardDetail" type="Control"]
 layout_mode = 3
@@ -46,10 +49,10 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_panel_bg")
 
 [node name="Art" type="ColorRect" parent="Panel"]
 layout_mode = 1
-anchor_left = 0.03
-anchor_top = 0.03
-anchor_right = 0.97
-anchor_bottom = 0.56
+anchor_left = 0.079
+anchor_top = 0.04
+anchor_right = 0.921
+anchor_bottom = 0.69
 grow_horizontal = 2
 grow_vertical = 2
 color = Color(1, 1, 1, 1)
@@ -57,9 +60,9 @@ color = Color(1, 1, 1, 1)
 [node name="NameLabel" type="Label" parent="Panel"]
 layout_mode = 1
 anchor_left = 0.03
-anchor_top = 0.58
+anchor_top = 0.72
 anchor_right = 0.97
-anchor_bottom = 0.68
+anchor_bottom = 0.80
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_font_sizes/font_size = 30
@@ -69,29 +72,20 @@ horizontal_alignment = 1
 [node name="XpBar" type="ProgressBar" parent="Panel"]
 layout_mode = 1
 anchor_left = 0.03
-anchor_top = 0.71
+anchor_top = 0.82
 anchor_right = 0.97
-anchor_bottom = 0.77
+anchor_bottom = 0.85
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_styles/fill = SubResource("StyleBoxFlat_xp_fill")
 show_percentage = false
 
 [node name="AbilityList" type="VBoxContainer" parent="Panel"]
 layout_mode = 1
 anchor_left = 0.03
-anchor_top = 0.80
-anchor_right = 0.97
-anchor_bottom = 0.90
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_constants/separation = 8
-
-[node name="CloseButton" type="Button" parent="Panel"]
-layout_mode = 1
-anchor_left = 0.03
-anchor_top = 0.92
+anchor_top = 0.87
 anchor_right = 0.97
 anchor_bottom = 0.98
 grow_horizontal = 2
 grow_vertical = 2
-text = "Close"
+theme_override_constants/separation = 8
