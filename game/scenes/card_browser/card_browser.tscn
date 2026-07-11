@@ -45,6 +45,22 @@ offset_bottom = 54.0
 grow_horizontal = 0
 text = "⚔ Battle Test"
 
+[node name="DeckBattleButton" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 0.0
+offset_left = -184.0
+offset_top = 64.0
+offset_right = -24.0
+offset_bottom = 104.0
+grow_horizontal = 0
+theme_override_font_sizes/font_size = 13
+text = "🐾 Deck Battle (Proto)"
+clip_text = true
+
 [node name="ScrollContainer" type="ScrollContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15

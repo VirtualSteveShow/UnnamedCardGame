@@ -356,6 +356,77 @@ layer.
   reference + "battle-ready stance" produced a muscular armored
   bird-headed warrior, not just a style problem) in `docs/art-pipeline.md`.
 
+## Experimental Mode: hand-based combat (prototype, built 2026-07-12)
+
+A second, deliberately separate combat prototype, built to test a
+fundamentally different idea without touching the original battlefield
+combat (`scenes/battle/`, `BattleState`) at all -- that system stays fully
+intact and reachable exactly as before via the "⚔ Battle Test" button.
+This one lives entirely under `scenes/battle_v2/` and
+`scripts/battle_v2/`, reached via a new "🐾 Deck Battle (Prototype)"
+button on the card browser, and reuses only genuinely generic sub-scenes
+from the original (`pile_button`, `battle_combatant_tile`,
+`battle_hand_card_tile`) -- nothing battle-rules-specific is shared.
+
+**Core idea**: captured creatures don't have HP and never get summoned
+onto a persistent battlefield. Playing a creature card from hand discards
+it immediately and releases one new card per ability it has straight into
+your hand (`AbilityCardData` -- not drawn from the deck, created fresh).
+Playing one of those ability cards shows the source creature's battle
+sprite popping out and performing the move (a short animation, purely
+cosmetic), resolves its effect, then discards -- the same single-use
+lifecycle an item card already has. There's no more "select a creature,
+then pick its ability" step: every playable card is just tapped directly,
+optionally followed by an enemy tap to target a damaging effect. This
+reads much closer to actual Slay the Spire than the original prototype's
+Pokémon-style persistent battlefield does.
+
+**Design decisions locked in before building** (see chat for the full
+options considered):
+- A played monster card is discarded immediately -- it doesn't stick
+  around to be replayed, matching how item cards already work.
+- One ability card is generated per ability the creature has (so a
+  `simple_abilities` Suburbs creature like House Cat, with just Strike,
+  releases 1 card; a City creature with Strike+Guard would release 2).
+  Reuses each creature's existing `CardAbility` data directly.
+- Enemies are unchanged from the original prototype: same fixed
+  HP-based roster (`BattleCombatant`, reused as-is), same turn structure
+  -- only their target changed, from a player creature to the player's
+  own HP pool.
+
+**What's different from `BattleState`, concretely**:
+- The player has `player_hp`/`player_max_hp`/`player_block` instead of a
+  `player_team` of creatures. Enemies attack that pool directly
+  (`_damage_player()`, block-then-HP order same as `BattleCombatant.take_damage`).
+- Healing item cards now apply directly to the player (no target needed)
+  since there's no player creature to choose between anymore -- tapping
+  a healing card resolves it immediately. Capture item cards are
+  unchanged (still target an enemy, which still has HP).
+- New `BattleStateV2.ability_played` signal fires right when an ability
+  card resolves (before the damage/log update), specifically so the UI
+  can play the sprite-pop animation without it needing to gate or delay
+  the actual rule resolution -- the animation coroutine runs independently.
+- `PlayerPanel` (`scenes/battle_v2/player_panel.tscn`/`.gd`) replaces the
+  player creature column with a simple HP/block display -- duplicates
+  `battle_combatant_tile`'s HP-bar color-by-percentage styling logic
+  rather than sharing it, since refactoring that tile to serve both
+  scenes risked touching the original system.
+- Same test roster/deck as the original Battle Test
+  (House Cat/Family Dog/Squirrel vs. Rabbit/Robin/Hamster), but the
+  player deck is intentionally smaller (4 creature cards instead of
+  needing more) since every creature card now generates extra cards on
+  top of itself -- a full deck would flood the hand.
+
+**Verified**: headless editor import (both new script classes registered
+as global classes cleanly), all three scenes (card browser, original
+Battle Test, new Deck Battle) play-tested headless with zero errors, and
+a temporary script exercised the full loop programmatically -- playing a
+monster card correctly nets the hand back to the same size (discard one,
+gain one ability card), the generated ability card deals damage to the
+targeted enemy, a healing item card heals the player directly, and ending
+the turn correctly damages the player's HP pool instead of a creature.
+Not yet tested on-device.
+
 ## Run structure (discussed, not yet decided/built)
 
 Two options on the table for how a run is actually navigated:

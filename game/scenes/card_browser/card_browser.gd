@@ -16,9 +16,10 @@ const VISIBLE_ROWS := 2
 ## of lopsided (padded only on whichever edge has a cutout).
 const BASE_EDGE_PADDING := 24.0
 
-## Extra vertical space reserved above the grid for the title text,
-## on top of the top edge padding.
-const TITLE_BAR_HEIGHT := 50.0
+## Extra vertical space reserved above the grid for the title text and
+## the stacked Battle Test / Deck Battle buttons, on top of the top edge
+## padding.
+const TITLE_BAR_HEIGHT := 96.0
 
 const VERSION_LABEL_SIZE := Vector2(160.0, 44.0)
 
@@ -26,6 +27,7 @@ const VERSION_LABEL_SIZE := Vector2(160.0, 44.0)
 @onready var grid: GridContainer = $ScrollContainer/GridContainer
 @onready var title_label: Label = $TitleLabel
 @onready var battle_test_button: Button = $BattleTestButton
+@onready var deck_battle_button: Button = $DeckBattleButton
 @onready var version_bg: ColorRect = $VersionBg
 @onready var version_label: Label = $VersionLabel
 @onready var detail_overlay: Control = $CardDetail
@@ -57,6 +59,7 @@ func _ready() -> void:
 	_populate_grid()
 
 	battle_test_button.pressed.connect(_on_battle_test_pressed)
+	deck_battle_button.pressed.connect(_on_deck_battle_pressed)
 
 	get_viewport().size_changed.connect(_on_viewport_resized)
 	_on_viewport_resized()
@@ -125,6 +128,11 @@ func _apply_safe_area_padding() -> void:
 	battle_test_button.offset_top = top
 	battle_test_button.offset_bottom = top + 40.0
 
+	deck_battle_button.offset_right = -right
+	deck_battle_button.offset_left = -right - 160.0
+	deck_battle_button.offset_top = top + 46.0
+	deck_battle_button.offset_bottom = top + 86.0
+
 	scroll_container.offset_left = left
 	scroll_container.offset_right = -right
 	scroll_container.offset_top = top + TITLE_BAR_HEIGHT
@@ -173,6 +181,13 @@ func _on_item_selected(item_data: ItemCardData) -> void:
 ## "pick your creature, then fight" flow doesn't exist yet.
 func _on_battle_test_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/battle/battle.tscn")
+
+
+## Entry point into the hand-based combat prototype (see battle_v2.gd) --
+## a deliberately separate scene/system so the original Battle Test above
+## stays completely untouched.
+func _on_deck_battle_pressed() -> void:
+	get_tree().change_scene_to_file("res://scenes/battle_v2/battle_v2.tscn")
 
 
 ## Cards forward their own drag movement here instead of relying on it
