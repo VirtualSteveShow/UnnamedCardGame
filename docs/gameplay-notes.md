@@ -289,6 +289,39 @@ layer.
   a fill color that switches green (>60% HP) / yellow (25-60%) / red
   (<25%) instead of the flat default ProgressBar look, so HP state reads at
   a glance during a fight.
+- **Left/right battlefield + dedicated battle sprites (built 2026-07-11)**:
+  player creatures now occupy a column on the left (`PlayerRow`, a
+  `VBoxContainer`), enemy creatures a column on the right (`EnemyRow`,
+  same), instead of two horizontal rows stacked top/bottom. `_fit_tile_size`
+  gained a `vertical_stack` parameter so the same "fit N tiles into the
+  available space" math works for a column, not just a row --
+  `_resize_creature_rows()` passes `vertical_stack=true` for both sides so
+  they still match in size.
+  Creatures also get a dedicated battle sprite (`CardData.battle_texture`,
+  falls back to the card art via `get_battle_texture()` if unset) instead
+  of reusing the card-portrait art on the battlefield -- a full-body side
+  profile pose facing right, distinct from the card's portrait framing.
+  Enemy tiles flip the same sprite horizontally (`TextureRect.flip_h`) to
+  face the player side rather than needing separate left/right-facing art.
+  Scoped to just the 6 creatures the Suburbs Battle Test actually uses
+  (House Cat, Family Dog, Squirrel, Rabbit, Robin, Hamster) to prove the
+  pipeline/layout before committing to art for the full 21-creature roster;
+  everything else still falls back to card art on the battlefield.
+  **Two real bugs found and fixed during this pass, both from phone
+  screenshots**: (1) the battlefield tile's art `TextureRect` used
+  `stretch_mode = 6` (`STRETCH_KEEP_ASPECT_COVERED`), which crops to fill
+  the frame -- fine for card art already composed to fill a portrait
+  frame, but it zoomed absurdly far into the new landscape-composed battle
+  sprites, showing only a cropped fur patch instead of the whole creature.
+  Changed to `stretch_mode = 5` (`STRETCH_KEEP_ASPECT_CENTERED`), which
+  letterboxes instead of cropping. (2) The first battle-sprite batch was
+  generated with painted sky/grass backgrounds (matching the card art
+  style), which combined with the crop bug to look especially broken, and
+  wasn't what was wanted anyway -- regenerated on flat white backgrounds
+  and ran each through the existing rembg background-removal pipeline
+  (`/bgremove` on the ComfyUI Phone App, already used elsewhere in this
+  project) to get real transparent PNGs, confirmed via direct alpha-channel
+  inspection (not just visual check) before wiring them in.
 
 ## Run structure (discussed, not yet decided/built)
 

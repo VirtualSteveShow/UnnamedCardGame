@@ -17,7 +17,7 @@ grow_vertical = 2
 mouse_filter = 2
 clip_contents = true
 expand_mode = 1
-stretch_mode = 6
+stretch_mode = 5
 
 [node name="NameLabel" type="Label" parent="."]
 layout_mode = 1

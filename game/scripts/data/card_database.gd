@@ -58,18 +58,24 @@ const REAL_CREATURES := [
 	# Guard) to reinforce "basic, one-ability" tutorial simplicity in
 	# data, not just flavor text.
 	{name = "House Cat", path = "res://assets/suburbs/house_cat_base.png",
+		battle_path = "res://assets/suburbs/battle_house_cat.png",
 		xp = 0.1, level = 1, max_health = 10, can_evolve = true, simple_abilities = true},
 	{name = "Watchcat", path = "res://assets/suburbs/house_cat_evolved.png",
 		xp = 1.0, level = 2, max_health = 10, can_evolve = true, simple_abilities = true},
 	{name = "Family Dog", path = "res://assets/suburbs/family_dog.png",
+		battle_path = "res://assets/suburbs/battle_family_dog.png",
 		xp = 0.0, level = 1, max_health = 12, can_evolve = false, simple_abilities = true},
 	{name = "Squirrel", path = "res://assets/suburbs/squirrel.png",
+		battle_path = "res://assets/suburbs/battle_squirrel.png",
 		xp = 0.0, level = 1, max_health = 5, can_evolve = false, simple_abilities = true},
 	{name = "Rabbit", path = "res://assets/suburbs/rabbit.png",
+		battle_path = "res://assets/suburbs/battle_rabbit.png",
 		xp = 0.0, level = 1, max_health = 6, can_evolve = false, simple_abilities = true},
 	{name = "Robin", path = "res://assets/suburbs/robin.png",
+		battle_path = "res://assets/suburbs/battle_robin.png",
 		xp = 0.0, level = 1, max_health = 4, can_evolve = false, simple_abilities = true},
 	{name = "Hamster", path = "res://assets/suburbs/hamster.png",
+		battle_path = "res://assets/suburbs/battle_hamster.png",
 		xp = 0.0, level = 1, max_health = 4, can_evolve = false, simple_abilities = true},
 ]
 
@@ -84,6 +90,8 @@ static func get_all_cards() -> Array[CardData]:
 		card.level = entry.level
 		card.max_health = entry.max_health
 		card.can_evolve = entry.can_evolve
+		if entry.has("battle_path"):
+			card.battle_texture = load(entry.battle_path)
 
 		var strike := CardAbility.new()
 		strike.ability_name = "Strike"

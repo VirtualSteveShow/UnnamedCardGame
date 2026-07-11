@@ -1,9 +1,11 @@
 extends Control
-## Battlefield: enemy team on one row (fixed roster, already in play),
-## player's field on another (starts empty, grows as creature cards are
-## summoned from hand), and a hand row of playable cards drawn from the
-## player's deck. See BattleState for the actual rules -- this is
-## purely presentation plus the tap-interpretation state machine:
+## Battlefield: player's team in a column on the left (starts empty,
+## grows as creature cards are summoned from hand), enemy team in a
+## column on the right (fixed roster, already in play, sprites flipped
+## to face the player side), and a hand row of playable cards drawn from
+## the player's deck along the bottom. See BattleState for the actual
+## rules -- this is purely presentation plus the tap-interpretation
+## state machine:
 ##
 ## - Tap a hand creature card -> summons it onto your field immediately.
 ## - Tap a hand item card -> waits for a target (ally for healing,
@@ -53,8 +55,8 @@ const ENEMY_TEAM_NAMES := ["Rabbit", "Robin", "Hamster"]
 
 const MAX_LOG_LINES := 5
 
-@onready var enemy_row: HBoxContainer = $EnemyRow
-@onready var player_row: HBoxContainer = $PlayerRow
+@onready var enemy_row: VBoxContainer = $EnemyRow
+@onready var player_row: VBoxContainer = $PlayerRow
 @onready var hand_row: HBoxContainer = $HandRow
 @onready var hand_focus_catcher: Button = $HandFocusCatcher
 @onready var hand_scrim: Button = $HandScrim
@@ -126,7 +128,7 @@ func _ready() -> void:
 	for combatant in battle.enemy_team:
 		var tile := CombatantTileScene.instantiate()
 		enemy_row.add_child(tile)
-		tile.setup(combatant)
+		tile.setup(combatant, true)
 		tile.tapped.connect(_on_enemy_tile_tapped)
 		_enemy_tiles.append(tile)
 
@@ -390,26 +392,44 @@ func _prune_dead(tiles: Array) -> void:
 
 
 ## Shared sizing math: the largest tile that fits `count` copies of it
-## side by side (with `separation` gaps) inside `available`, while
-## keeping the standard card aspect ratio. Two candidate sizes -- as big
-## as the full height allows, or as big as fitting every tile in the
-## available width allows -- whichever is smaller is the real limit
-## (the larger one would overflow the other dimension).
-func _fit_tile_size(available: Vector2, count: int, separation: float) -> Vector2:
-	var height_from_height_limit: float = available.y
-	var width_from_height_limit: float = height_from_height_limit * BaseCardData.ASPECT_RATIO
-
-	var width_from_width_limit: float = (available.x - separation * (count - 1)) / count
-	var height_from_width_limit: float = width_from_width_limit / BaseCardData.ASPECT_RATIO
-
+## stacked along the container's main axis (with `separation` gaps)
+## inside `available`, while keeping the standard card aspect ratio.
+## `vertical_stack` picks which axis that is -- false for an
+## HBoxContainer-style row (count divides the width), true for a
+## VBoxContainer-style column (count divides the height). Either way,
+## two candidate sizes are computed -- as big as the full cross-axis
+## allows, or as big as fitting every tile along the main axis allows --
+## and the smaller one wins (the larger would overflow the other axis).
+func _fit_tile_size(available: Vector2, count: int, separation: float, vertical_stack: bool = false) -> Vector2:
 	var tile_width: float
 	var tile_height: float
-	if height_from_height_limit <= height_from_width_limit:
-		tile_height = height_from_height_limit
-		tile_width = width_from_height_limit
+
+	if vertical_stack:
+		var height_from_count_limit: float = (available.y - separation * (count - 1)) / count
+		var width_from_count_limit: float = height_from_count_limit * BaseCardData.ASPECT_RATIO
+
+		var width_from_cross_limit: float = available.x
+		var height_from_cross_limit: float = width_from_cross_limit / BaseCardData.ASPECT_RATIO
+
+		if width_from_cross_limit <= width_from_count_limit:
+			tile_width = width_from_cross_limit
+			tile_height = height_from_cross_limit
+		else:
+			tile_width = width_from_count_limit
+			tile_height = height_from_count_limit
 	else:
-		tile_width = width_from_width_limit
-		tile_height = height_from_width_limit
+		var height_from_cross_limit: float = available.y
+		var width_from_cross_limit: float = height_from_cross_limit * BaseCardData.ASPECT_RATIO
+
+		var width_from_count_limit: float = (available.x - separation * (count - 1)) / count
+		var height_from_count_limit: float = width_from_count_limit / BaseCardData.ASPECT_RATIO
+
+		if height_from_cross_limit <= height_from_count_limit:
+			tile_height = height_from_cross_limit
+			tile_width = width_from_cross_limit
+		else:
+			tile_width = width_from_count_limit
+			tile_height = height_from_count_limit
 
 	return Vector2(maxf(tile_width, 40.0), maxf(tile_height, 60.0))
 
@@ -437,9 +457,9 @@ func _resize_row(row: HBoxContainer, tiles: Array) -> void:
 ## same size.
 func _resize_creature_rows() -> void:
 	var enemy_candidate := _fit_tile_size(
-		enemy_row.size, maxi(_enemy_tiles.size(), 1), enemy_row.get_theme_constant("separation"))
+		enemy_row.size, maxi(_enemy_tiles.size(), 1), enemy_row.get_theme_constant("separation"), true)
 	var player_candidate := _fit_tile_size(
-		player_row.size, maxi(_player_tiles.size(), 1), player_row.get_theme_constant("separation"))
+		player_row.size, maxi(_player_tiles.size(), 1), player_row.get_theme_constant("separation"), true)
 	var shared_size := Vector2(
 		minf(enemy_candidate.x, player_candidate.x), minf(enemy_candidate.y, player_candidate.y))
 

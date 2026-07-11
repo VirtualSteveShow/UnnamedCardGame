@@ -67,3 +67,31 @@ cheap (~15s) since ComfyUI caches the conditioning tensors.
 5. Commit `art/wip/` raw files alongside the `game/assets/` final copies —
    keeping both means the raw generation is still around for reference/
    re-cropping without needing to regenerate.
+
+## Battle sprites (sprite needs a transparent background)
+
+Same generation flow, with two differences learned building the Suburbs
+battle sprites (2026-07-11):
+
+- **Generate on a flat white background**, not the usual painted
+  scene/sky/grass — add `solid flat plain white background, no scenery, no
+  ground shadow gradient, studio product shot` to the prompt instead of the
+  faction's usual atmosphere descriptors. A busy painted background makes
+  the next step (background removal) segment worse.
+- **Run it through `/bgremove`** (rembg via subprocess, same endpoint the
+  BG REMOVE tab in this project's ComfyUI Phone App uses) before wiring it
+  in: `POST /bgremove` with the image as multipart form data, poll
+  `/status/<job_id>`, then read the result from
+  `ComfyUI/output/bgremove_<id>.png` (not a subfolder). **Verify the result
+  actually has alpha** before trusting it — don't just eyeball it, the Read
+  tool's image preview renders transparency as opaque white so a failed
+  removal and a successful one can look identical at a glance. Quick check:
+  a PNG info tool reporting `RGBA` plus a corner-pixel alpha of 0 confirms
+  it; `file <path>.png` reporting `8-bit/color RGBA` is the first signal.
+- Any `TextureRect` this art lands in needs `stretch_mode =
+  STRETCH_KEEP_ASPECT_CENTERED` (5), not `STRETCH_KEEP_ASPECT_COVERED` (6).
+  Covered-mode crops to fill the frame, which is fine for card art already
+  composed to fill a portrait frame, but a landscape-composed battle sprite
+  in a portrait-shaped tile gets cropped down to an unrecognizable close-up
+  fur patch under cover mode. Centered mode letterboxes instead — with a
+  transparent background, the letterbox space is invisible.

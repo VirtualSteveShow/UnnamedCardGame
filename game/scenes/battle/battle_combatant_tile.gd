@@ -54,9 +54,14 @@ func _ready() -> void:
 	hp_bar.add_theme_stylebox_override("fill", _hp_fill_style)
 
 
-func setup(c: BattleCombatant) -> void:
+## facing_left: true for the enemy side, so a battle sprite drawn facing
+## right (the shared convention every side-view sprite is generated in)
+## mirrors to face the player side instead of facing off the edge of the
+## screen. Purely a flip -- no separate "facing left" art needed.
+func setup(c: BattleCombatant, facing_left: bool = false) -> void:
 	combatant = c
-	art_rect.texture = c.data.get_display_texture()
+	art_rect.texture = c.data.get_battle_texture()
+	art_rect.flip_h = facing_left
 	name_label.text = c.data.card_name
 	refresh()
 

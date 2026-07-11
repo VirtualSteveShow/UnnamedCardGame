@@ -24,3 +24,14 @@ extends BaseCardData
 
 ## Abilities available to this creature.
 @export var abilities: Array[CardAbility] = []
+
+## Side-view sprite used on the battlefield when this creature is
+## summoned into combat -- a full-body profile pose, distinct from
+## art_texture's card-portrait framing. Null means no battle sprite yet
+## (most of the roster, for now); get_battle_texture() falls back to the
+## card art so battle tiles always have something to show.
+@export var battle_texture: Texture2D = null
+
+
+func get_battle_texture() -> Texture2D:
+	return battle_texture if battle_texture else get_display_texture()
