@@ -23,10 +23,12 @@ const HandTileScene := preload("res://scenes/battle/battle_hand_card_tile.tscn")
 ## Mixed creature + item cards, per design direction: one deck, not
 ## separate creature/action decks. A couple of duplicates included so a
 ## short test battle can actually exercise the reshuffle-on-empty path.
-const PLAYER_DECK_CREATURES := ["Alley Kitten", "Alley Kitten", "Raccoon", "Crow"]
+## Suburbs Faction for now (was City) to exercise the new roster -- item
+## cards are still City-flavored since Suburbs doesn't have its own yet.
+const PLAYER_DECK_CREATURES := ["House Cat", "House Cat", "Family Dog", "Squirrel"]
 const PLAYER_DECK_ITEMS := ["Alley Snare", "Weighted Net", "Back-Alley Bandage", "Back-Alley Bandage"]
 
-const ENEMY_TEAM_NAMES := ["Sewer Rat", "Cockroach", "Opossum"]
+const ENEMY_TEAM_NAMES := ["Rabbit", "Robin", "Hamster"]
 
 const MAX_LOG_LINES := 5
 

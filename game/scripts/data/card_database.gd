@@ -49,6 +49,28 @@ const REAL_CREATURES := [
 		xp = 0.0, level = 1, max_health = 30, can_evolve = false},
 	{name = "Bat", path = "res://assets/city_faction/bat.png",
 		xp = 0.0, level = 1, max_health = 6, can_evolve = false},
+
+	# Suburbs Faction (calm daytime counterpart to City; doubles as the
+	# tutorial location -- see docs/lore.md). Deliberately lighter than
+	# City: the starter gets a single evolution (not a branching pair) to
+	# show the mechanic off without a big art investment, and every
+	# Suburbs creature sets simple_abilities = true (Strike only, no
+	# Guard) to reinforce "basic, one-ability" tutorial simplicity in
+	# data, not just flavor text.
+	{name = "House Cat", path = "res://assets/suburbs/house_cat_base.png",
+		xp = 0.1, level = 1, max_health = 10, can_evolve = true, simple_abilities = true},
+	{name = "Watchcat", path = "res://assets/suburbs/house_cat_evolved.png",
+		xp = 1.0, level = 2, max_health = 10, can_evolve = true, simple_abilities = true},
+	{name = "Family Dog", path = "res://assets/suburbs/family_dog.png",
+		xp = 0.0, level = 1, max_health = 12, can_evolve = false, simple_abilities = true},
+	{name = "Squirrel", path = "res://assets/suburbs/squirrel.png",
+		xp = 0.0, level = 1, max_health = 5, can_evolve = false, simple_abilities = true},
+	{name = "Rabbit", path = "res://assets/suburbs/rabbit.png",
+		xp = 0.0, level = 1, max_health = 6, can_evolve = false, simple_abilities = true},
+	{name = "Robin", path = "res://assets/suburbs/robin.png",
+		xp = 0.0, level = 1, max_health = 4, can_evolve = false, simple_abilities = true},
+	{name = "Hamster", path = "res://assets/suburbs/hamster.png",
+		xp = 0.0, level = 1, max_health = 4, can_evolve = false, simple_abilities = true},
 ]
 
 static func get_all_cards() -> Array[CardData]:
@@ -68,12 +90,15 @@ static func get_all_cards() -> Array[CardData]:
 		strike.energy_cost = 1 + (i % 3)
 		strike.damage = strike.energy_cost * 3
 
-		var guard := CardAbility.new()
-		guard.ability_name = "Guard"
-		guard.energy_cost = 1
-		guard.block = 3
+		if entry.get("simple_abilities", false):
+			card.abilities = [strike]
+		else:
+			var guard := CardAbility.new()
+			guard.ability_name = "Guard"
+			guard.energy_cost = 1
+			guard.block = 3
+			card.abilities = [strike, guard]
 
-		card.abilities = [strike, guard]
 		cards.append(card)
 	return cards
 

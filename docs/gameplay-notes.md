@@ -1,19 +1,25 @@
 # Unnamed Card Game — Design Notes
 
 Living document for gameplay ideas as we brainstorm. Subject to change.
+Narrative/worldbuilding lives separately in `lore.md`.
 
 ## Premise (current, subject to change)
 
 Slay the Spire structure/loop, with Pokémon-style creature collecting layered in.
+Roguelike run target: **1-2 hours or less per run**, similar to Slay the Spire --
+this is the constraint the run-structure decision below has to fit inside.
 
 - **Starter Creature**: pick a starter similar to picking a class in Slay the Spire.
-  Only one starter will exist for the initial build.
+  Only City Faction's starter exists so far; Suburbs is gaining a (much lighter)
+  starter of its own, so "only one starter" may not hold long-term -- see the
+  Suburbs section below.
 - **Creature cards have visible XP bars.** Leveling up makes a creature stronger.
   The *first* level-up presents a choice of evolution path (branching evolutions,
   not a single fixed line).
 - **Abilities cost energy.** Each creature ability has a specific energy cost to use.
 - **Capturing**: creatures can be captured via a specific item/card type, which adds
-  the captured creature to the player's deck.
+  the captured creature to the player's deck. See `lore.md` for why this exists
+  in-universe (cards are a storage/command technology, not just a game abstraction).
 
 ## Technical requirements
 
@@ -108,6 +114,46 @@ prove out how non-creature cards read. See `ItemCardData`/`ItemDatabase`.
   `max_health` stat (shown on the card detail view) to give healing/damage
   something to act on once battle systems exist.
 
+## Faction: Suburbs (second faction, built)
+
+Bright sunny daytime aesthetic -- the calm counterpart to City's grit, and
+deliberately the game's tutorial location: basic creatures, mostly
+one-ability, gentle difficulty ramp. See `docs/lore.md` for how this fits
+into the wider location brainstorm and the ~4-6 faction scope call.
+
+**Starter**: House Cat (Lv1) -> Watchcat (Lv2, red bandana, fence-post pose,
+reads as more confident/alert). One evolution, not a branching pair like
+City's starter -- deliberately lighter, just enough to show the evolution
+mechanic off without a big art investment. `xp_progress` values (0.1 -> 1.0)
+match City's starter pacing.
+
+**Roster (built, single-stage except the starter)**: Family Dog (12 HP,
+loyal/sturdy flavor), Squirrel (5 HP, quick/erratic), Rabbit (6 HP), Robin (4
+HP, garden bird counterpart to City's crow), Hamster (4 HP, smallest in the
+roster, pet-cage flavor).
+
+**`simple_abilities` flag (new)**: a `CardDatabase.REAL_CREATURES` entry
+key that, when true, gives that creature only a Strike ability and no Guard.
+Every Suburbs creature sets it. This reinforces "basic, one-ability" in data,
+not just flavor text/art style -- a Suburbs card is mechanically simpler to
+play, not just visually calmer. Verified computationally: House Cat has
+exactly 1 ability where a City creature (e.g. Raccoon) has 2, and
+`get_all_cards()` returns 21 total (14 City + 7 Suburbs).
+
+**Item cards**: none of its own yet -- the Suburbs test battle still uses
+City-Faction-flavored item cards (Alley Snare, Weighted Net, Back-Alley
+Bandage). Not a blocker for now since item cards are a separate visual
+system from creatures; revisit if Suburbs ships as a real first-location
+rather than just a second test roster.
+
+**Art learnings**: same style-prompt approach as City (bright/cheerful
+variant -- "sunny suburban daytime atmosphere, warm bright color palette,
+soft cheerful lighting" swapped in for City's gritty-night wording), same
+explicit "no anthropomorphic humanoid pose" guard clause carried over from
+the City starter's brawler-pose lesson. No new pose problems hit this time --
+smaller/simpler animals (squirrel, rabbit, robin, hamster) didn't tempt Flux
+toward bipedal poses the way a "muscular cat standing defiantly" did.
+
 ## Combat (third version built)
 
 Deck/hand/discard on top of the team battlefield -- Slay the Spire's actual
@@ -148,9 +194,12 @@ layer.
   tile the moment it dies, so the row visually shrinks instead of just
   graying the card out. A defeated creature's card returns to the discard
   pile at that point (modeling "the card comes back to you, just battered").
-- **Test deck**: 4 creature cards (2x Alley Kitten, Raccoon, Crow) + 4 item
-  cards (Alley Snare, Weighted Net, 2x Back-Alley Bandage) vs. the same
-  enemy roster as before (Sewer Rat/Cockroach/Opossum).
+- **Test deck**: 4 creature cards (2x House Cat, Family Dog, Squirrel) + 4
+  item cards (Alley Snare, Weighted Net, 2x Back-Alley Bandage, still
+  City-flavored since Suburbs has no items of its own yet) vs. a Suburbs
+  enemy roster (Rabbit/Robin/Hamster) -- swapped from the original City
+  matchup (Alley Kitten/Raccoon/Crow vs. Sewer Rat/Cockroach/Opossum) once
+  the Suburbs roster existed, to actually exercise the new faction.
 - Verified computationally: initial draw size, summoning correctly costs
   energy and does *not* discard the card, a defeated summon's card *does*
   land in discard, healing heals and consumes the item, capture at low HP
@@ -160,6 +209,44 @@ layer.
 - **Entry point unchanged**: the "⚔ Battle Test" button in the card
   browser's top bar. Still no real "build your deck" flow -- the deck
   composition above is hardcoded in battle.gd.
+
+## Run structure (discussed, not yet decided/built)
+
+Two options on the table for how a run is actually navigated:
+
+1. **Slay the Spire-style branching path** -- a node-graph map (fights,
+   events, shops, elites, boss) traversed per act, with player choice at
+   each branch. Well-understood pattern, fast to build, and its pacing is
+   *exactly* what "1-2 hours per run" is optimized for -- that's literally
+   what Slay the Spire's structure is built to do.
+2. **Pokémon-style explorable overworld** -- free movement, wander into
+   encounters, non-linear discovery. A dramatically bigger build (level
+   design, movement/collision, camera, possibly NPCs/quests -- an order of
+   magnitude more production than anything built so far combined), and in
+   tension with the 1-2 hour run target: Pokémon-style exploration is
+   paced for 20-40+ hour completion, not a repeatable short run, so
+   reconciling the two would itself be a real design problem, not just an
+   engineering one.
+
+**Recommendation: branching path (option 1) as the primary structure.**
+The "own flair" doesn't have to come from the map shape -- it can come
+from tying map *nodes* directly to the location/faction system (each node
+is literally a place: a City node, a Suburbs node, etc., making the path
+feel like a road trip across biomes rather than an abstract StS map), plus
+the creature-collecting layer itself (deck of captured creatures,
+evolution, capture-in-battle) is already a big enough differentiator from
+Slay the Spire on its own. A lighter middle ground exists too, for later:
+small hand-crafted or procedural explorable *rooms* per node (closer to
+Hades/Enter the Gungeon than a full overworld) layered on top of the
+branching structure once it exists, without committing to a full overworld
+now.
+
+This also gives the Suburbs-as-tutorial idea a clean home: if the map is
+faction-node-based, Suburbs can simply *be* the first node cluster every
+run passes through, without needing a separate "choose your starter"
+system to introduce it.
+
+Not built, not locked in -- flagging here so it doesn't get lost.
 
 ## Open questions / not yet decided
 
