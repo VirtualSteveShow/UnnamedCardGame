@@ -235,20 +235,33 @@ layer.
   furniture on the table, not part of the hand itself. `PileCountsLabel`
   (the old "Discard: N · Hand: N" text) was removed entirely now that the
   discard pile shows its own count and the hand's size is visible directly.
-- **Hand focus/collapse (built 2026-07-11)**: the hand rests small and
-  non-interactive along the bottom of the screen (roughly the lower third)
-  until tapped; tapping it (`HandFocusCatcher`, a transparent full-row
-  button layered on top of the hand while unfocused) expands it to a much
-  taller band with full-size, playable cards, and dims the rest of the
-  board behind it (`HandScrim`). Tapping the scrim collapses it back. Only
-  `HandRow`'s `anchor_top` moves between the two states (`battle.gd`'s
-  `HAND_UNFOCUSED_TOP`/`HAND_FOCUSED_TOP` constants) -- left/right/bottom
-  stay fixed so the deck/discard piles beside it never move, and the
-  existing tile-fit sizing math (`_resize_row`) automatically produces
-  small cards in the small rect and large cards in the large rect with no
-  separate scaling step. The draw-animation ghost logic needed no changes
-  -- it already reads each tile's laid-out position/size after the fact, so
-  it lands correctly whether a draw happens while focused or collapsed.
+- **Hand focus/collapse (built 2026-07-11, fixed same day)**: the hand
+  rests small and non-interactive along the bottom of the screen until
+  tapped; tapping it (`HandFocusCatcher`, a transparent button layered on
+  top of the hand while unfocused) expands its cards to full size and
+  playability, and dims the rest of the board behind them (`HandScrim`).
+  Tapping the scrim collapses it back.
+  **Bug found on first phone test**: the first version grew `HandRow`'s
+  own rect (`anchor_top`) between a small and large band, but the small
+  band's top (0.525) sat *above* `PlayerRow`'s bottom (0.62) -- a real
+  overlap, not just a sizing complaint -- and "unfocused" cards were sized
+  by filling that band to max rather than actually being small, so the
+  resting hand rendered nearly full-size and visibly covered/obscured the
+  player's creature row. Caught via an on-device screenshot (both my own
+  ADB screencap and ones the user sent) showing a half-hidden creature
+  tile poking out from behind the hand.
+  **Fix**: `HandRow`'s rect is now fixed at all times (the same band it
+  always occupied, safely below `PlayerRow`) -- only card size and
+  interactivity change with focus, never the rect itself. Unfocused cards
+  use a small fixed size (`HAND_SMALL_HEIGHT_FRACTION` of viewport height,
+  not a fill-to-max fit), so they stay genuinely small regardless of how
+  much room is technically available; focused cards still use the normal
+  fill-to-max fit (`_resize_row`) against that same fixed rect. This also
+  eliminated the whole *class* of overlap risk, not just this instance,
+  since HandRow can no longer grow into space another row already owns.
+  The deck/discard piles and hand-card-name font size were also tuned to
+  match (names were clipping at the new small card size -- shrunk the
+  font and enabled wrapping).
 - **Creature tile size consistency (fixed 2026-07-11)**: enemy and player
   creature tiles used to size independently per row (`_resize_row` called
   separately on each), so they visibly mismatched whenever the two rows'

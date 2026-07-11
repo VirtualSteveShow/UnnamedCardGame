@@ -28,18 +28,18 @@ const HandTileScene := preload("res://scenes/battle/battle_hand_card_tile.tscn")
 const DRAW_ANIM_DURATION := 0.35
 const DRAW_ANIM_STAGGER := 0.1
 
-## Hand focus state: the hand rests small (card-back-pile-sized, and
-## non-interactive) along the bottom of the screen until tapped, then
-## grows to this taller band and becomes playable. Only anchor_top
-## differs between the two -- left/right/bottom stay fixed so the deck
-## and discard piles beside the hand never move. Kept as named constants
-## (not read from the .tscn) since HandFocusCatcher has to track
-## HandRow's anchor_top exactly.
-const HAND_ANCHOR_LEFT := 0.02
-const HAND_ANCHOR_RIGHT := 0.62
-const HAND_ANCHOR_BOTTOM := 0.855
-const HAND_UNFOCUSED_TOP := 0.525
-const HAND_FOCUSED_TOP := 0.20
+## Hand focus state: HandRow's rect is FIXED (same band the hand always
+## occupied) regardless of focus -- only the card SIZE and interactivity
+## change. Earlier this also grew HandRow's rect upward when focused,
+## which put it on a collision course with PlayerRow's own fixed rect
+## (0.36-0.62) and visibly overlapped/obscured it. Fixed size instead:
+## unfocused cards render at a small flat size (peeking up from the
+## bottom, non-interactive, HandFocusCatcher on top catching taps to
+## expand); focused cards fill the same rect at full size via the normal
+## fit-to-max sizing, with a dim scrim behind them (still HandRow's own
+## rect, never grown) so it reads as "focused" without ever risking
+## overlapping the rows above.
+const HAND_SMALL_HEIGHT_FRACTION := 0.11
 
 ## Mixed creature + item cards, per design direction: one deck, not
 ## separate creature/action decks. A couple of duplicates included so a
@@ -246,16 +246,15 @@ func _show_pile_view(title: String, cards: Array) -> void:
 
 
 ## Hand starts small and non-interactive (resting along the bottom of
-## the screen); tapping it (or any hand card) expands it to full size
-## and playability. Tapping the scrim behind the expanded hand collapses
-## it back. Only anchor_top moves -- see the HAND_* constants.
+## the screen); tapping it expands its cards to full size and
+## playability, with a dim scrim behind them. Tapping the scrim
+## collapses it back. HandRow's own rect never changes -- only the card
+## size and interactivity do -- see _refresh_all()'s hand-sizing branch.
 func _set_hand_focused(focused: bool) -> void:
 	if _hand_focused == focused:
 		return
 	_hand_focused = focused
 
-	hand_row.anchor_top = HAND_FOCUSED_TOP if focused else HAND_UNFOCUSED_TOP
-	hand_focus_catcher.anchor_top = hand_row.anchor_top
 	hand_focus_catcher.mouse_filter = Control.MOUSE_FILTER_IGNORE if focused else Control.MOUSE_FILTER_STOP
 
 	hand_scrim.visible = focused
@@ -450,25 +449,27 @@ func _resize_creature_rows() -> void:
 		tile.custom_minimum_size = shared_size
 
 
-## The deck/discard piles always sit at their resting size -- the same
-## size the hand's cards are when the hand itself is unfocused/resting --
-## regardless of whether the hand is currently focused/enlarged. Computed
-## against the fixed unfocused anchor rect rather than hand_row's actual
-## current rect, since that rect is whatever the current focus state made
-## it (possibly the enlarged one).
-func _resting_hand_tile_size() -> Vector2:
-	var vp := get_viewport_rect().size
-	var available := Vector2(
-		vp.x * (HAND_ANCHOR_RIGHT - HAND_ANCHOR_LEFT),
-		vp.y * (HAND_ANCHOR_BOTTOM - HAND_UNFOCUSED_TOP))
-	return _fit_tile_size(available, maxi(_hand_tiles.size(), 1), hand_row.get_theme_constant("separation"))
+## Small flat card size used for the resting/unfocused hand and for the
+## deck/discard piles (which always sit at this size regardless of the
+## hand's current focus state -- they're fixed furniture on the table,
+## not part of the hand itself). A fixed fraction of viewport height
+## rather than a fill-to-max fit against some rect, so it stays genuinely
+## small no matter how much room is technically available.
+func _small_hand_tile_size() -> Vector2:
+	var h := get_viewport_rect().size.y * HAND_SMALL_HEIGHT_FRACTION
+	return Vector2(h * BaseCardData.ASPECT_RATIO, h)
 
 
 func _refresh_all() -> void:
 	_resize_creature_rows()
-	_resize_row(hand_row, _hand_tiles)
 
-	var pile_size := _resting_hand_tile_size()
+	var pile_size := _small_hand_tile_size()
+	if _hand_focused:
+		_resize_row(hand_row, _hand_tiles)
+	else:
+		for tile in _hand_tiles:
+			tile.custom_minimum_size = pile_size
+
 	deck_pile_button.custom_minimum_size = pile_size
 	discard_pile_button.custom_minimum_size = pile_size
 
