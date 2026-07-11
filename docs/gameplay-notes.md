@@ -345,6 +345,16 @@ layer.
   between the two is obvious while browsing instead of only showing up
   once the creature hits the battlefield. Hidden entirely for the vast
   majority of the roster that doesn't have a battle sprite yet.
+- **Battle sprites regenerated via img2img (2026-07-11)**: the first batch
+  (independent txt2img per creature) looked visibly inconsistent with the
+  card art -- same creature, different proportions/shading. Regenerated
+  using `/imgedit` (Flux ReferenceLatent) with each creature's *existing
+  card art as the reference image* instead, which keeps coloring/markings
+  consistent since the model edits the same source rather than
+  reinterpreting a text description from scratch. Full writeup of the
+  prompt pattern and a bird-specific humanoid-drift incident (Robin's
+  reference + "battle-ready stance" produced a muscular armored
+  bird-headed warrior, not just a style problem) in `docs/art-pipeline.md`.
 
 ## Run structure (discussed, not yet decided/built)
 

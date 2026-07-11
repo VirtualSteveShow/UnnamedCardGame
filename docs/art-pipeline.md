@@ -68,26 +68,63 @@ cheap (~15s) since ComfyUI caches the conditioning tensors.
    keeping both means the raw generation is still around for reference/
    re-cropping without needing to regenerate.
 
-## Battle sprites (sprite needs a transparent background)
+## Battle sprites (needs a transparent background AND to match the card art)
 
-Same generation flow, with two differences learned building the Suburbs
-battle sprites (2026-07-11):
+**Use img2img (`/imgedit`), not an independent txt2img generation.** First
+attempt (2026-07-11) generated battle sprites from scratch with a fresh
+txt2img prompt per creature, sharing only the text description with the
+card art -- the results were inconsistent with the card art (different
+proportions, shading, sometimes even markings) since nothing actually tied
+the two generations together beyond wording. Redone the same day using
+`/imgedit` with the creature's *existing card art as the reference image*,
+which keeps coloring/markings/proportions consistent because the model is
+now editing the same source rather than reinterpreting a text description
+from nothing.
 
-- **Generate on a flat white background**, not the usual painted
-  scene/sky/grass — add `solid flat plain white background, no scenery, no
-  ground shadow gradient, studio product shot` to the prompt instead of the
-  faction's usual atmosphere descriptors. A busy painted background makes
-  the next step (background removal) segment worse.
-- **Run it through `/bgremove`** (rembg via subprocess, same endpoint the
-  BG REMOVE tab in this project's ComfyUI Phone App uses) before wiring it
-  in: `POST /bgremove` with the image as multipart form data, poll
-  `/status/<job_id>`, then read the result from
-  `ComfyUI/output/bgremove_<id>.png` (not a subfolder). **Verify the result
-  actually has alpha** before trusting it — don't just eyeball it, the Read
-  tool's image preview renders transparency as opaque white so a failed
-  removal and a successful one can look identical at a glance. Quick check:
-  a PNG info tool reporting `RGBA` plus a corner-pixel alpha of 0 confirms
-  it; `file <path>.png` reporting `8-bit/color RGBA` is the first signal.
+`/imgedit` (`_flux_img_edit_workflow`, ReferenceLatent-based) takes
+multipart form data: `image` (the reference file), `prompt`, `seed`,
+`steps` (8 works well), optional `export_path`. Poll `/status/<job_id>`
+same as txt2img.
+
+- **Prompt pattern that worked**: `"make a side profile of the <creature>
+  character on an all white background, full body, <pose/stance
+  description>, facing right"`. Keep it short -- ReferenceLatent
+  conditioning already pulls the style/coloring from the source image, so
+  the prompt only needs to describe the pose change and background, not
+  re-describe the whole creature's appearance.
+- **Same background rule as before**: ask for a flat white background
+  (not painted scenery) so the follow-up `/bgremove` step segments
+  cleanly.
+- **Watch for humanoid drift on birds specifically, not just mammals.**
+  "battle-ready stance" on the Robin reference produced a muscular
+  armored bird-headed *humanoid warrior* -- a completely different
+  subject, not a rendering-quality problem like previous humanoid-drift
+  incidents. Quadruped guidance ("on all fours") doesn't apply to birds;
+  needed explicit `"not a humanoid, not anthropomorphic, no muscular
+  human body, no armor, no clothing, no weapons, just a small ordinary
+  garden bird"` plus reinforcing `"natural bird anatomy, standing on two
+  thin bird legs"` to correct it. That fix alone also lost the pixel-art
+  style (came back smooth/vector-like) -- needed a *second* retry adding
+  back `"keep the exact same 16-bit pixel art style as the reference
+  image, chunky pixels, thick black outline, no anti-aliasing, no smooth
+  vector look"` explicitly, since the heavy anti-humanoid intervention
+  apparently competed with the reference image's automatic style transfer.
+  **Always eyeball img2img results for subject drift, not just style
+  drift** -- a strange prompt/reference interaction can change what the
+  subject *is*, not just how it's rendered, and that's easy to miss if
+  you're only checking "does it look like pixel art."
+- **Still run every result through `/bgremove`** even though the prompt
+  already asks for a white background -- `/imgedit` output is a flat white
+  fill, not real transparency, and `/bgremove` (rembg subprocess) is what
+  actually converts it to alpha. Same as before: `POST /bgremove` with the
+  image as multipart form data, poll `/status/<job_id>`, read the result
+  from `ComfyUI/output/bgremove_<id>.png` (not a subfolder).
+- **Verify the result actually has alpha** before trusting it — don't just
+  eyeball it, the Read tool's image preview renders transparency as opaque
+  (white or black, inconsistently) so a failed removal and a successful
+  one can look identical at a glance. Quick check: a PNG info tool
+  reporting `RGBA` plus a corner-pixel alpha of 0 confirms it; `file
+  <path>.png` reporting `8-bit/color RGBA` is the first signal.
 - Any `TextureRect` this art lands in needs `stretch_mode =
   STRETCH_KEEP_ASPECT_CENTERED` (5), not `STRETCH_KEEP_ASPECT_COVERED` (6).
   Covered-mode crops to fill the frame, which is fine for card art already
