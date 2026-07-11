@@ -218,15 +218,46 @@ layer.
 - **Entry point unchanged**: the "⚔ Battle Test" button in the card
   browser's top bar. Still no real "build your deck" flow -- the deck
   composition above is hardcoded in battle.gd.
-- **Physical deck pile (new, built 2026-07-11)**: a clickable stacked-card
-  widget (`deck_pile_button.tscn`) sits beside the hand row showing the
-  live draw-pile count. Tapping it opens a full-screen overlay
-  (`DeckViewOverlay`) listing every card still in the draw pile (read-only
-  `battle_hand_card_tile` instances, sorted alphabetically, in a scrolling
-  grid) so the player can actually check what's left instead of only
-  seeing a number. `PileCountsLabel` was trimmed to just Discard/Hand since
-  the deck count now lives on the pile widget itself.
-- **Draw animation (new, built 2026-07-11)**: `BattleState` gained a
+- **Deck + discard piles (built 2026-07-11, revised 2026-07-11)**: a shared
+  `pile_button.tscn` component (generalized from an earlier draw-pile-only
+  version) renders both the draw pile and a new discard pile as clickable
+  stacked-card widgets side by side beside the hand row. Tapping either
+  opens a full-screen overlay (`PileViewOverlay`, reused for both) listing
+  every card currently in that pile (read-only `battle_hand_card_tile`
+  instances, sorted alphabetically, in a scrolling grid). An empty pile
+  (the discard pile at battle start, or in principle the draw pile at the
+  instant it's fully depleted) drops the stacked-card look and count number
+  for a flat bordered outline instead, so "empty" reads clearly rather than
+  showing a stack of zero. No card-back art yet -- placeholder stack look,
+  swap in real art on the pile button's `FrontPanel` once it exists. Both
+  piles are always sized to match the hand's *resting* (unfocused) card
+  size/aspect ratio, never the enlarged focused size -- they're fixed
+  furniture on the table, not part of the hand itself. `PileCountsLabel`
+  (the old "Discard: N · Hand: N" text) was removed entirely now that the
+  discard pile shows its own count and the hand's size is visible directly.
+- **Hand focus/collapse (built 2026-07-11)**: the hand rests small and
+  non-interactive along the bottom of the screen (roughly the lower third)
+  until tapped; tapping it (`HandFocusCatcher`, a transparent full-row
+  button layered on top of the hand while unfocused) expands it to a much
+  taller band with full-size, playable cards, and dims the rest of the
+  board behind it (`HandScrim`). Tapping the scrim collapses it back. Only
+  `HandRow`'s `anchor_top` moves between the two states (`battle.gd`'s
+  `HAND_UNFOCUSED_TOP`/`HAND_FOCUSED_TOP` constants) -- left/right/bottom
+  stay fixed so the deck/discard piles beside it never move, and the
+  existing tile-fit sizing math (`_resize_row`) automatically produces
+  small cards in the small rect and large cards in the large rect with no
+  separate scaling step. The draw-animation ghost logic needed no changes
+  -- it already reads each tile's laid-out position/size after the fact, so
+  it lands correctly whether a draw happens while focused or collapsed.
+- **Creature tile size consistency (fixed 2026-07-11)**: enemy and player
+  creature tiles used to size independently per row (`_resize_row` called
+  separately on each), so they visibly mismatched whenever the two rows'
+  rect heights or creature counts differed -- which they usually do, since
+  the enemy roster is fixed at battle start while the player's field starts
+  empty and grows. `_resize_creature_rows()` now computes a candidate size
+  for each row and applies the smaller of the two to *both*, so every
+  creature on the board is the same size regardless of which side it's on.
+- **Draw animation (built 2026-07-11)**: `BattleState` gained a
   `cards_drawn` signal that fires with just the newly drawn cards (not the
   whole hand) after any draw -- the opening hand and every subsequent
   turn's refill both go through the same `_draw_hand()` path, so one signal
@@ -240,7 +271,7 @@ layer.
   opening hand) stagger by 0.1s each so they read as being dealt one at a
   time. The ghost animates, never the real tile, so it can't desync from
   whatever the hand row's container decides the actual layout is.
-- **Health bars restyled (new, built 2026-07-11)**: the HP `ProgressBar` on
+- **Health bars restyled (built 2026-07-11)**: the HP `ProgressBar` on
   each battlefield tile now uses a custom rounded/bordered background plus
   a fill color that switches green (>60% HP) / yellow (25-60%) / red
   (<25%) instead of the flat default ProgressBar look, so HP state reads at

@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scenes/battle/battle.gd" id="1_script"]
-[ext_resource type="PackedScene" path="res://scenes/battle/deck_pile_button.tscn" id="2_deckpile"]
+[ext_resource type="PackedScene" path="res://scenes/battle/pile_button.tscn" id="2_pilebtn"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_result_panel"]
 bg_color = Color(0.16, 0.16, 0.2, 1)
@@ -73,25 +73,66 @@ grow_vertical = 2
 alignment = 1
 theme_override_constants/separation = 20
 
+[node name="HandScrim" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+visible = false
+flat = true
+text = ""
+
+[node name="HandScrimColor" type="ColorRect" parent="HandScrim"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.55)
+
 [node name="HandRow" type="HBoxContainer" parent="."]
 layout_mode = 1
 anchor_left = 0.02
-anchor_top = 0.63
-anchor_right = 0.82
+anchor_top = 0.525
+anchor_right = 0.62
 anchor_bottom = 0.855
 grow_horizontal = 2
 grow_vertical = 2
 alignment = 1
 theme_override_constants/separation = 16
 
-[node name="DeckPileButton" parent="." instance=ExtResource("2_deckpile")]
+[node name="HandFocusCatcher" type="Button" parent="."]
 layout_mode = 1
-anchor_left = 0.835
-anchor_top = 0.63
+anchor_left = 0.02
+anchor_top = 0.525
+anchor_right = 0.62
+anchor_bottom = 0.855
+grow_horizontal = 2
+grow_vertical = 2
+flat = true
+text = ""
+
+[node name="PileRow" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchor_left = 0.655
+anchor_top = 0.525
 anchor_right = 0.98
 anchor_bottom = 0.855
 grow_horizontal = 2
 grow_vertical = 2
+alignment = 1
+theme_override_constants/separation = 20
+
+[node name="DeckPileButton" parent="PileRow" instance=ExtResource("2_pilebtn")]
+layout_mode = 2
+
+[node name="DiscardPileButton" parent="PileRow" instance=ExtResource("2_pilebtn")]
+layout_mode = 2
 
 [node name="AnimationLayer" type="Control" parent="."]
 layout_mode = 1
@@ -140,18 +181,6 @@ grow_vertical = 2
 theme_override_font_sizes/font_size = 18
 text = "Energy: 3/3"
 
-[node name="PileCountsLabel" type="Label" parent="."]
-layout_mode = 1
-anchor_left = 0.32
-anchor_top = 0.92
-anchor_right = 0.75
-anchor_bottom = 0.95
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_font_sizes/font_size = 16
-theme_override_colors/font_color = Color(0.7, 0.7, 0.75, 1)
-text = "Deck: 0  ·  Discard: 0  ·  Hand: 0"
-
 [node name="AbilityButtonsRow" type="HBoxContainer" parent="."]
 layout_mode = 1
 anchor_left = 0.02
@@ -172,7 +201,7 @@ grow_horizontal = 2
 grow_vertical = 2
 text = "End Turn"
 
-[node name="DeckViewOverlay" type="Control" parent="."]
+[node name="PileViewOverlay" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -181,7 +210,7 @@ grow_horizontal = 2
 grow_vertical = 2
 visible = false
 
-[node name="DimBg" type="ColorRect" parent="DeckViewOverlay"]
+[node name="DimBg" type="ColorRect" parent="PileViewOverlay"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -190,7 +219,7 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0, 0, 0, 0.7)
 
-[node name="DeckViewPanel" type="Panel" parent="DeckViewOverlay"]
+[node name="PileViewPanel" type="Panel" parent="PileViewOverlay"]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -205,7 +234,7 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_result_panel")
 
-[node name="TitleLabel" type="Label" parent="DeckViewOverlay/DeckViewPanel"]
+[node name="TitleLabel" type="Label" parent="PileViewOverlay/PileViewPanel"]
 layout_mode = 1
 anchor_right = 1.0
 offset_left = 20.0
@@ -216,7 +245,7 @@ theme_override_font_sizes/font_size = 24
 text = "Draw Pile (0)"
 horizontal_alignment = 1
 
-[node name="ScrollContainer" type="ScrollContainer" parent="DeckViewOverlay/DeckViewPanel"]
+[node name="ScrollContainer" type="ScrollContainer" parent="PileViewOverlay/PileViewPanel"]
 layout_mode = 1
 anchor_left = 0.03
 anchor_top = 0.12
@@ -226,14 +255,14 @@ grow_horizontal = 2
 grow_vertical = 2
 horizontal_scroll_mode = 0
 
-[node name="GridContainer" type="GridContainer" parent="DeckViewOverlay/DeckViewPanel/ScrollContainer"]
+[node name="GridContainer" type="GridContainer" parent="PileViewOverlay/PileViewPanel/ScrollContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/h_separation = 14
 theme_override_constants/v_separation = 14
 columns = 5
 
-[node name="CloseButton" type="Button" parent="DeckViewOverlay/DeckViewPanel"]
+[node name="CloseButton" type="Button" parent="PileViewOverlay/PileViewPanel"]
 layout_mode = 1
 anchor_left = 0.35
 anchor_top = 0.89

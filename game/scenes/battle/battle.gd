@@ -19,7 +19,6 @@ extends Control
 
 const CombatantTileScene := preload("res://scenes/battle/battle_combatant_tile.tscn")
 const HandTileScene := preload("res://scenes/battle/battle_hand_card_tile.tscn")
-const DeckPileButtonScene := preload("res://scenes/battle/deck_pile_button.tscn")
 
 ## Draw animation: a "ghost" copy of the drawn card flies from the deck
 ## pile's on-screen position to its final hand-row slot, growing from a
@@ -28,6 +27,19 @@ const DeckPileButtonScene := preload("res://scenes/battle/deck_pile_button.tscn"
 ## dealt one at a time instead of all popping in together.
 const DRAW_ANIM_DURATION := 0.35
 const DRAW_ANIM_STAGGER := 0.1
+
+## Hand focus state: the hand rests small (card-back-pile-sized, and
+## non-interactive) along the bottom of the screen until tapped, then
+## grows to this taller band and becomes playable. Only anchor_top
+## differs between the two -- left/right/bottom stay fixed so the deck
+## and discard piles beside the hand never move. Kept as named constants
+## (not read from the .tscn) since HandFocusCatcher has to track
+## HandRow's anchor_top exactly.
+const HAND_ANCHOR_LEFT := 0.02
+const HAND_ANCHOR_RIGHT := 0.62
+const HAND_ANCHOR_BOTTOM := 0.855
+const HAND_UNFOCUSED_TOP := 0.525
+const HAND_FOCUSED_TOP := 0.20
 
 ## Mixed creature + item cards, per design direction: one deck, not
 ## separate creature/action decks. A couple of duplicates included so a
@@ -44,24 +56,26 @@ const MAX_LOG_LINES := 5
 @onready var enemy_row: HBoxContainer = $EnemyRow
 @onready var player_row: HBoxContainer = $PlayerRow
 @onready var hand_row: HBoxContainer = $HandRow
+@onready var hand_focus_catcher: Button = $HandFocusCatcher
+@onready var hand_scrim: Button = $HandScrim
+@onready var deck_pile_button := $PileRow/DeckPileButton
+@onready var discard_pile_button := $PileRow/DiscardPileButton
 @onready var log_label: Label = $LogLabel
 @onready var hint_label: Label = $HintLabel
 @onready var energy_label: Label = $EnergyLabel
-@onready var pile_counts_label: Label = $PileCountsLabel
 @onready var ability_buttons_row: HBoxContainer = $AbilityButtonsRow
 @onready var end_turn_button: Button = $EndTurnButton
 @onready var return_button: Button = $ReturnButton
-@onready var deck_pile_button := $DeckPileButton
 @onready var animation_layer: Control = $AnimationLayer
 
 @onready var result_overlay: Control = $ResultOverlay
 @onready var result_label: Label = $ResultOverlay/ResultPanel/ResultLabel
 @onready var result_return_button: Button = $ResultOverlay/ResultPanel/ReturnButton
 
-@onready var deck_view_overlay: Control = $DeckViewOverlay
-@onready var deck_view_title: Label = $DeckViewOverlay/DeckViewPanel/TitleLabel
-@onready var deck_view_grid: GridContainer = $DeckViewOverlay/DeckViewPanel/ScrollContainer/GridContainer
-@onready var deck_view_close_button: Button = $DeckViewOverlay/DeckViewPanel/CloseButton
+@onready var pile_view_overlay: Control = $PileViewOverlay
+@onready var pile_view_title: Label = $PileViewOverlay/PileViewPanel/TitleLabel
+@onready var pile_view_grid: GridContainer = $PileViewOverlay/PileViewPanel/ScrollContainer/GridContainer
+@onready var pile_view_close_button: Button = $PileViewOverlay/PileViewPanel/CloseButton
 
 var battle: BattleState
 var _log_lines: Array[String] = []
@@ -85,6 +99,8 @@ var _pending_item: ItemCardData = null
 ## which of the tiles it's about to create should play the fly-in
 ## animation instead of just appearing instantly.
 var _pending_draw_cards: Array = []
+
+var _hand_focused: bool = false
 
 
 func _ready() -> void:
@@ -117,8 +133,13 @@ func _ready() -> void:
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
 	return_button.pressed.connect(_return_to_browser)
 	result_return_button.pressed.connect(_return_to_browser)
+	deck_pile_button.set_label("DRAW PILE")
 	deck_pile_button.tapped.connect(_on_deck_pile_tapped)
-	deck_view_close_button.pressed.connect(func() -> void: deck_view_overlay.visible = false)
+	discard_pile_button.set_label("DISCARD PILE")
+	discard_pile_button.tapped.connect(_on_discard_pile_tapped)
+	pile_view_close_button.pressed.connect(func() -> void: pile_view_overlay.visible = false)
+	hand_focus_catcher.pressed.connect(func() -> void: _set_hand_focused(true))
+	hand_scrim.pressed.connect(func() -> void: _set_hand_focused(false))
 	get_viewport().size_changed.connect(_refresh_all)
 
 	battle.start_battle()
@@ -199,19 +220,48 @@ func _on_cards_drawn(cards: Array) -> void:
 
 
 func _on_deck_pile_tapped() -> void:
-	for child in deck_view_grid.get_children():
-		child.queue_free()
-
 	var cards := battle.player_deck.duplicate()
 	cards.sort_custom(func(a, b) -> bool: return a.card_name < b.card_name)
-	deck_view_title.text = "Draw Pile (%d)" % cards.size()
+	_show_pile_view("Draw Pile", cards)
+
+
+func _on_discard_pile_tapped() -> void:
+	var cards := battle.player_discard.duplicate()
+	cards.sort_custom(func(a, b) -> bool: return a.card_name < b.card_name)
+	_show_pile_view("Discard Pile", cards)
+
+
+func _show_pile_view(title: String, cards: Array) -> void:
+	for child in pile_view_grid.get_children():
+		child.queue_free()
+
+	pile_view_title.text = "%s (%d)" % [title, cards.size()]
 	for card in cards:
 		var tile := HandTileScene.instantiate()
-		deck_view_grid.add_child(tile)
+		pile_view_grid.add_child(tile)
 		tile.setup(card)
 		tile.disabled = true
 
-	deck_view_overlay.visible = true
+	pile_view_overlay.visible = true
+
+
+## Hand starts small and non-interactive (resting along the bottom of
+## the screen); tapping it (or any hand card) expands it to full size
+## and playability. Tapping the scrim behind the expanded hand collapses
+## it back. Only anchor_top moves -- see the HAND_* constants.
+func _set_hand_focused(focused: bool) -> void:
+	if _hand_focused == focused:
+		return
+	_hand_focused = focused
+
+	hand_row.anchor_top = HAND_FOCUSED_TOP if focused else HAND_UNFOCUSED_TOP
+	hand_focus_catcher.anchor_top = hand_row.anchor_top
+	hand_focus_catcher.mouse_filter = Control.MOUSE_FILTER_IGNORE if focused else Control.MOUSE_FILTER_STOP
+
+	hand_scrim.visible = focused
+	hand_scrim.mouse_filter = Control.MOUSE_FILTER_STOP if focused else Control.MOUSE_FILTER_IGNORE
+
+	_refresh_all()
 
 
 func _on_state_changed() -> void:
@@ -340,27 +390,17 @@ func _prune_dead(tiles: Array) -> void:
 			tiles.remove_at(i)
 
 
-## Sizes every tile in a row to fill as much of the row's available
-## space as possible while keeping the standard card aspect ratio and
-## fitting every tile side by side -- mirrors the card browser's
-## approach instead of a fixed pixel size, so battle tiles actually use
-## the space available (especially on wide/high-res phone screens)
-## rather than sitting small in the middle of a mostly-empty row.
-func _resize_row(row: HBoxContainer, tiles: Array) -> void:
-	if tiles.is_empty():
-		return
-
-	var separation: float = row.get_theme_constant("separation")
-	var count: int = tiles.size()
-
-	# Two candidate sizes: as big as the row's full height allows, or as
-	# big as fitting every tile side-by-side in the row's width allows.
-	# Whichever is smaller is the actual limit -- using the larger of
-	# the two would overflow the other dimension.
-	var height_from_height_limit: float = row.size.y
+## Shared sizing math: the largest tile that fits `count` copies of it
+## side by side (with `separation` gaps) inside `available`, while
+## keeping the standard card aspect ratio. Two candidate sizes -- as big
+## as the full height allows, or as big as fitting every tile in the
+## available width allows -- whichever is smaller is the real limit
+## (the larger one would overflow the other dimension).
+func _fit_tile_size(available: Vector2, count: int, separation: float) -> Vector2:
+	var height_from_height_limit: float = available.y
 	var width_from_height_limit: float = height_from_height_limit * BaseCardData.ASPECT_RATIO
 
-	var width_from_width_limit: float = (row.size.x - separation * (count - 1)) / count
+	var width_from_width_limit: float = (available.x - separation * (count - 1)) / count
 	var height_from_width_limit: float = width_from_width_limit / BaseCardData.ASPECT_RATIO
 
 	var tile_width: float
@@ -372,15 +412,65 @@ func _resize_row(row: HBoxContainer, tiles: Array) -> void:
 		tile_width = width_from_width_limit
 		tile_height = height_from_width_limit
 
-	var tile_size := Vector2(maxf(tile_width, 40.0), maxf(tile_height, 60.0))
+	return Vector2(maxf(tile_width, 40.0), maxf(tile_height, 60.0))
+
+
+## Sizes every tile in a row to fill as much of the row's available
+## space as possible -- mirrors the card browser's approach instead of a
+## fixed pixel size, so battle tiles actually use the space available
+## (especially on wide/high-res phone screens) rather than sitting small
+## in the middle of a mostly-empty row.
+func _resize_row(row: HBoxContainer, tiles: Array) -> void:
+	if tiles.is_empty():
+		return
+	var separation: float = row.get_theme_constant("separation")
+	var tile_size := _fit_tile_size(row.size, tiles.size(), separation)
 	for tile in tiles:
 		tile.custom_minimum_size = tile_size
 
 
+## Enemy and player creature tiles used to be sized independently per
+## row, so they visibly mismatched whenever the two rows' rect heights
+## or creature counts differed (which they usually do -- the enemy
+## roster is fixed at battle start, the player's field starts empty and
+## grows). Compute one candidate per row, then use the smaller of the
+## two for both, so every creature on the board -- either side -- is the
+## same size.
+func _resize_creature_rows() -> void:
+	var enemy_candidate := _fit_tile_size(
+		enemy_row.size, maxi(_enemy_tiles.size(), 1), enemy_row.get_theme_constant("separation"))
+	var player_candidate := _fit_tile_size(
+		player_row.size, maxi(_player_tiles.size(), 1), player_row.get_theme_constant("separation"))
+	var shared_size := Vector2(
+		minf(enemy_candidate.x, player_candidate.x), minf(enemy_candidate.y, player_candidate.y))
+
+	for tile in _enemy_tiles:
+		tile.custom_minimum_size = shared_size
+	for tile in _player_tiles:
+		tile.custom_minimum_size = shared_size
+
+
+## The deck/discard piles always sit at their resting size -- the same
+## size the hand's cards are when the hand itself is unfocused/resting --
+## regardless of whether the hand is currently focused/enlarged. Computed
+## against the fixed unfocused anchor rect rather than hand_row's actual
+## current rect, since that rect is whatever the current focus state made
+## it (possibly the enlarged one).
+func _resting_hand_tile_size() -> Vector2:
+	var vp := get_viewport_rect().size
+	var available := Vector2(
+		vp.x * (HAND_ANCHOR_RIGHT - HAND_ANCHOR_LEFT),
+		vp.y * (HAND_ANCHOR_BOTTOM - HAND_UNFOCUSED_TOP))
+	return _fit_tile_size(available, maxi(_hand_tiles.size(), 1), hand_row.get_theme_constant("separation"))
+
+
 func _refresh_all() -> void:
-	_resize_row(enemy_row, _enemy_tiles)
-	_resize_row(player_row, _player_tiles)
+	_resize_creature_rows()
 	_resize_row(hand_row, _hand_tiles)
+
+	var pile_size := _resting_hand_tile_size()
+	deck_pile_button.custom_minimum_size = pile_size
+	discard_pile_button.custom_minimum_size = pile_size
 
 	for tile in _player_tiles:
 		tile.refresh()
@@ -388,9 +478,8 @@ func _refresh_all() -> void:
 		tile.refresh()
 
 	energy_label.text = "Energy: %d/%d" % [battle.energy, BattleState.ENERGY_PER_TURN]
-	pile_counts_label.text = "Discard: %d  ·  Hand: %d" % [
-		battle.player_discard.size(), battle.player_hand.size()]
 	deck_pile_button.set_count(battle.player_deck.size())
+	discard_pile_button.set_count(battle.player_discard.size())
 
 	if battle.is_over:
 		hint_label.text = ""
@@ -400,6 +489,8 @@ func _refresh_all() -> void:
 		hint_label.text = "Choose a target for %s" % _pending_item.card_name
 	elif not battle.is_player_turn:
 		hint_label.text = "Enemy turn…"
+	elif not _hand_focused:
+		hint_label.text = "Tap your hand to play a card"
 	else:
 		hint_label.text = "Pick a creature and an ability, or play a card from your hand"
 
