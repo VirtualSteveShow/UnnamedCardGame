@@ -82,7 +82,15 @@ func can_play_card(card: BaseCardData) -> bool:
 ## Playing a creature card doesn't summon it -- it's discarded immediately
 ## and one AbilityCardData per ability it has is created straight into
 ## hand instead, so each of the creature's moves becomes its own playable
-## card.
+## card. The first ability generated is always free (0 energy) --
+## playing the creature card already costs energy, and the hand discards
+## at end of turn regardless of what's left unplayed, so without this a
+## creature played late in a turn (or on a tight energy budget) could
+## release ability cards you can't actually afford to use before they're
+## discarded unused. Overridden here rather than in CardDatabase's own
+## ability costs so this stays scoped to this mode's economy -- the
+## original battlefield combat's per-turn repeat-use economy doesn't have
+## the same problem and shouldn't change.
 func play_creature_card(card: CardData) -> void:
 	if not can_play_card(card):
 		return
@@ -92,13 +100,14 @@ func play_creature_card(card: CardData) -> void:
 	player_discard.append(card)
 
 	var generated: Array[BaseCardData] = []
-	for ability in card.abilities:
+	for i in card.abilities.size():
+		var ability: CardAbility = card.abilities[i]
 		var ability_card := AbilityCardData.new()
 		ability_card.source_creature = card
 		ability_card.ability = ability
 		ability_card.card_name = "%s: %s" % [card.card_name, ability.ability_name]
 		ability_card.art_texture = card.get_battle_texture()
-		ability_card.energy_cost = ability.energy_cost
+		ability_card.energy_cost = 0 if i == 0 else ability.energy_cost
 		player_hand.append(ability_card)
 		generated.append(ability_card)
 

@@ -425,7 +425,29 @@ monster card correctly nets the hand back to the same size (discard one,
 gain one ability card), the generated ability card deals damage to the
 targeted enemy, a healing item card heals the player directly, and ending
 the turn correctly damages the player's HP pool instead of a creature.
-Not yet tested on-device.
+
+**First on-device pass, two fixes (2026-07-12)**:
+- **Player sprite**: `PlayerPanel` was text-only ("YOU" + HP bar), no
+  actual character. Generated a generic pixel-art trainer sprite (young
+  character holding a hand of cards, side profile facing right, same
+  style/pipeline as the creature battle sprites -- txt2img on a flat
+  white background, then `/bgremove` for real transparency) and added it
+  to the panel. Lives at `game/assets/player/player_battle_sprite.png`,
+  not tied to any faction since the player isn't faction-specific.
+- **Free first ability per creature**: on-device testing surfaced a real
+  economy problem -- the hand discards at end of turn (intentional, Slay
+  the Spire convention), and playing a creature card already costs
+  energy just to release its ability cards into hand. If the abilities
+  themselves also cost energy, a creature played without enough energy
+  left over would release cards you couldn't afford before they got
+  discarded unused. Fixed by making the *first* ability card generated
+  by `play_creature_card()` always cost 0 energy, regardless of what
+  `CardAbility.energy_cost` says on the source data -- guarantees every
+  played creature nets at least one usable move the same turn. Overridden
+  in `BattleStateV2` itself (not `CardDatabase`'s shared ability data) so
+  it's scoped to this mode's economy only; the original battlefield
+  combat's repeat-use-across-turns economy doesn't have the same problem
+  and wasn't touched.
 
 ## Run structure (discussed, not yet decided/built)
 
