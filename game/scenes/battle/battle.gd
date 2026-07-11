@@ -128,6 +128,7 @@ func _ready() -> void:
 	for combatant in battle.enemy_team:
 		var tile := CombatantTileScene.instantiate()
 		enemy_row.add_child(tile)
+		_lock_tile_size(tile)
 		tile.setup(combatant, true)
 		tile.tapped.connect(_on_enemy_tile_tapped)
 		_enemy_tiles.append(tile)
@@ -135,8 +136,10 @@ func _ready() -> void:
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
 	return_button.pressed.connect(_return_to_browser)
 	result_return_button.pressed.connect(_return_to_browser)
+	_lock_tile_size(deck_pile_button)
 	deck_pile_button.set_label("DRAW PILE")
 	deck_pile_button.tapped.connect(_on_deck_pile_tapped)
+	_lock_tile_size(discard_pile_button)
 	discard_pile_button.set_label("DISCARD PILE")
 	discard_pile_button.tapped.connect(_on_discard_pile_tapped)
 	pile_view_close_button.pressed.connect(func() -> void: pile_view_overlay.visible = false)
@@ -152,6 +155,7 @@ func _ready() -> void:
 func _on_creature_summoned(combatant: BattleCombatant) -> void:
 	var tile := CombatantTileScene.instantiate()
 	player_row.add_child(tile)
+	_lock_tile_size(tile)
 	tile.setup(combatant)
 	tile.tapped.connect(_on_player_tile_tapped)
 	_player_tiles.append(tile)
@@ -241,6 +245,7 @@ func _show_pile_view(title: String, cards: Array) -> void:
 	for card in cards:
 		var tile := HandTileScene.instantiate()
 		pile_view_grid.add_child(tile)
+		_lock_tile_size(tile)
 		tile.setup(card)
 		tile.disabled = true
 
@@ -309,6 +314,7 @@ func _rebuild_hand_tiles() -> void:
 	for card in battle.player_hand:
 		var tile := HandTileScene.instantiate()
 		hand_row.add_child(tile)
+		_lock_tile_size(tile)
 		tile.setup(card)
 		tile.disabled = not battle.can_play_card(card)
 		tile.set_selected(card == _pending_item)
@@ -389,6 +395,21 @@ func _prune_dead(tiles: Array) -> void:
 		if not tiles[i].combatant.is_alive():
 			tiles[i].queue_free()
 			tiles.remove_at(i)
+
+
+## A Container gives every child its own minimum size along the main
+## (stacking) axis, but by default stretches each child to fill the full
+## CROSS-axis size regardless of that child's custom_minimum_size -- e.g.
+## a VBoxContainer stretches children to its own width even if their
+## custom_minimum_size.x is much smaller. That's what made creature tiles
+## balloon out to fill the entire width of PlayerRow/EnemyRow once those
+## became columns: _fit_tile_size was computing the right size, but the
+## container was stretching the tile wider anyway. SHRINK_CENTER on both
+## axes makes custom_minimum_size authoritative -- the tile sits at
+## exactly that size, centered in whatever space the container allocates.
+func _lock_tile_size(tile: Control) -> void:
+	tile.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	tile.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
 
 ## Shared sizing math: the largest tile that fits `count` copies of it

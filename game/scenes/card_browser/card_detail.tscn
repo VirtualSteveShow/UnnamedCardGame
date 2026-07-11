@@ -59,6 +59,42 @@ clip_contents = true
 expand_mode = 1
 stretch_mode = 6
 
+[node name="BattleSpriteBox" type="Panel" parent="Panel"]
+layout_mode = 1
+anchor_left = 0.66
+anchor_top = 0.47
+anchor_right = 0.96
+anchor_bottom = 0.75
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel_bg")
+visible = false
+
+[node name="BattleSpriteArt" type="TextureRect" parent="Panel/BattleSpriteBox"]
+layout_mode = 1
+anchor_left = 0.08
+anchor_top = 0.05
+anchor_right = 0.92
+anchor_bottom = 0.78
+grow_horizontal = 2
+grow_vertical = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="BattleSpriteLabel" type="Label" parent="Panel/BattleSpriteBox"]
+layout_mode = 1
+anchor_left = 0.0
+anchor_top = 0.8
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.7, 0.7, 0.75, 1)
+text = "BATTLE SPRITE"
+horizontal_alignment = 1
+autowrap_mode = 2
+
 [node name="NameLabel" type="Label" parent="Panel"]
 layout_mode = 1
 anchor_left = 0.04

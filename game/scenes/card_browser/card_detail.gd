@@ -30,6 +30,8 @@ const ABILITY_ROW_FONT_SIZE := 24
 @onready var xp_bar: ProgressBar = $Panel/XpBar
 @onready var ability_list: VBoxContainer = $Panel/AbilityList
 @onready var dim_background: ColorRect = $DimBackground
+@onready var battle_sprite_box: Panel = $Panel/BattleSpriteBox
+@onready var battle_sprite_art: TextureRect = $Panel/BattleSpriteBox/BattleSpriteArt
 
 
 func _ready() -> void:
@@ -38,11 +40,20 @@ func _ready() -> void:
 	_update_panel_size()
 
 
+## Shows the card's battle sprite alongside its card art, when it has one,
+## so a style mismatch between the two is obvious at a glance instead of
+## only showing up once the creature hits the battlefield. Most creatures
+## don't have a battle sprite yet (see CardData.battle_texture) -- the
+## inset just stays hidden for those.
 func show_card(data: CardData) -> void:
 	art_rect.texture = data.get_display_texture()
 	name_label.text = data.card_name
 	hp_label.text = "%d HP" % data.max_health
 	xp_bar.value = data.xp_progress * 100.0
+
+	battle_sprite_box.visible = data.battle_texture != null
+	if data.battle_texture:
+		battle_sprite_art.texture = data.battle_texture
 
 	# Clear any ability rows left over from whichever card was shown
 	# previously before rebuilding the list for this one.

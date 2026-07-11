@@ -322,6 +322,29 @@ layer.
   (`/bgremove` on the ComfyUI Phone App, already used elsewhere in this
   project) to get real transparent PNGs, confirmed via direct alpha-channel
   inspection (not just visual check) before wiring them in.
+- **Third real bug, found the same way (fixed 2026-07-11)**: even after
+  the crop/transparency fixes, creature tiles still rendered enormous --
+  a `Container` (here, `PlayerRow`/`EnemyRow` as `VBoxContainer`s) gives
+  each child its own minimum size along the stacking axis, but by default
+  stretches every child to fill the full *cross*-axis size regardless of
+  that child's `custom_minimum_size` -- for a vertical column, the cross
+  axis is width, so tiles were stretching out to the column's full width
+  (the whole left or right half of the screen) no matter what
+  `_fit_tile_size` computed. Fixed by setting `size_flags_horizontal` and
+  `size_flags_vertical` to `SIZE_SHRINK_CENTER` on every dynamically
+  created tile (`_lock_tile_size()`, called for creature tiles, hand
+  tiles, pile-view tiles, and the deck/discard pile buttons) so
+  `custom_minimum_size` is authoritative on both axes instead of just
+  being a floor the container could stretch past. Verified computationally
+  (not just visually) by comparing `tile.size` to `tile.custom_minimum_size`
+  after layout settles -- they now match exactly.
+- **Card detail battle-sprite comparison (built 2026-07-11)**: the card
+  browser's detail overlay (`card_detail.tscn`/`.gd`) now shows a small
+  inset of the creature's battle sprite next to its card art, when it has
+  one (`CardData.battle_texture`), specifically so a style mismatch
+  between the two is obvious while browsing instead of only showing up
+  once the creature hits the battlefield. Hidden entirely for the vast
+  majority of the roster that doesn't have a battle sprite yet.
 
 ## Run structure (discussed, not yet decided/built)
 
