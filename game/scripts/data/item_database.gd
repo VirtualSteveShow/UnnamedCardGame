@@ -7,6 +7,9 @@ extends RefCounted
 ## weakest one (Alley Snare) is the version included in every starter
 ## deck; stronger tiers are found/earned later. Healing is a single
 ## card for now (Back-Alley Bandage).
+##
+## Suburbs Faction gets its own lighter pair (Cat Carrier + Band-Aid),
+## tutorial-only for now -- see the Suburbs block below.
 
 const ITEMS := [
 	{
@@ -33,6 +36,26 @@ const ITEMS := [
 	{
 		name = "Back-Alley Bandage",
 		path = "res://assets/city_faction/item_healing_bandage.png",
+		type = ItemCardData.ItemType.HEALING,
+		heal = 8,
+		description = "Restores 8 HP to a creature.",
+	},
+
+	# Suburbs Faction items -- tutorial-only for now (used exclusively by the
+	# Suburbs Battle Test matchup in battle.gd). Deliberately just one
+	# capture tier and one healing card, no progression tiers like City's
+	# Weighted Net/Reinforced Cage -- matches Suburbs' "basic, one-ability"
+	# tutorial simplicity (see docs/gameplay-notes.md).
+	{
+		name = "Cat Carrier",
+		path = "res://assets/suburbs/item_cat_carrier.png",
+		type = ItemCardData.ItemType.CAPTURE,
+		threshold = 0.25,
+		description = "Captures a creature at or below 25% health. Comes in every Suburbs starter deck. One use per battle.",
+	},
+	{
+		name = "Band-Aid",
+		path = "res://assets/suburbs/item_band_aid.png",
 		type = ItemCardData.ItemType.HEALING,
 		heal = 8,
 		description = "Restores 8 HP to a creature.",

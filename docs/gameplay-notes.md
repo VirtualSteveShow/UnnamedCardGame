@@ -140,19 +140,28 @@ play, not just visually calmer. Verified computationally: House Cat has
 exactly 1 ability where a City creature (e.g. Raccoon) has 2, and
 `get_all_cards()` returns 21 total (14 City + 7 Suburbs).
 
-**Item cards**: none of its own yet -- the Suburbs test battle still uses
-City-Faction-flavored item cards (Alley Snare, Weighted Net, Back-Alley
-Bandage). Not a blocker for now since item cards are a separate visual
-system from creatures; revisit if Suburbs ships as a real first-location
-rather than just a second test roster.
+**Item cards (built)**: Cat Carrier (capture, 25% HP threshold, comes in
+every Suburbs starter deck -- same tier/role as City's Alley Snare) and
+Band-Aid (healing, 8 HP -- same amount as City's Back-Alley Bandage).
+Tutorial-only for now: just one capture tier and one healing card, no
+progression tiers like City's Weighted Net/Reinforced Cage, matching
+Suburbs' "basic" identity. Only used by the Suburbs Battle Test matchup.
 
-**Art learnings**: same style-prompt approach as City (bright/cheerful
-variant -- "sunny suburban daytime atmosphere, warm bright color palette,
-soft cheerful lighting" swapped in for City's gritty-night wording), same
-explicit "no anthropomorphic humanoid pose" guard clause carried over from
-the City starter's brawler-pose lesson. No new pose problems hit this time --
-smaller/simpler animals (squirrel, rabbit, robin, hamster) didn't tempt Flux
-toward bipedal poses the way a "muscular cat standing defiantly" did.
+**Art learnings**: the first art pass (bright/cheerful variant of City's
+style prompt) came back visibly too soft/cartoonish compared to City's
+grittier pixel work -- more "mobile game mascot icon" than "16-bit game
+asset." Regenerated 2026-07-11 with the rendering-fidelity wording tightened
+(explicit "not chibi, not kawaii, not a cute mascot," "detailed
+pixel-dithered shading," "no soft gradients," "clear hard directional
+sunlight with defined shadows") while keeping the daytime setting -- pulled
+the *texture/rendering* back toward City's fidelity. Some residual
+cuteness is just inherent to the content (a rabbit's big eyes, a hamster in
+a cage) rather than a rendering problem; flagged for the user to confirm
+whether another pass is needed. Item card art reused City's proven
+close-up-hero-shot item template (blurred bokeh background, centered
+object, thick outline) with the same daytime-palette swap. Same explicit
+"no anthropomorphic humanoid pose" guard clause carried over from the City
+starter's brawler-pose lesson -- no new pose problems hit this time.
 
 ## Combat (third version built)
 
@@ -194,12 +203,12 @@ layer.
   tile the moment it dies, so the row visually shrinks instead of just
   graying the card out. A defeated creature's card returns to the discard
   pile at that point (modeling "the card comes back to you, just battered").
-- **Test deck**: 4 creature cards (2x House Cat, Family Dog, Squirrel) + 4
-  item cards (Alley Snare, Weighted Net, 2x Back-Alley Bandage, still
-  City-flavored since Suburbs has no items of its own yet) vs. a Suburbs
-  enemy roster (Rabbit/Robin/Hamster) -- swapped from the original City
-  matchup (Alley Kitten/Raccoon/Crow vs. Sewer Rat/Cockroach/Opossum) once
-  the Suburbs roster existed, to actually exercise the new faction.
+- **Test deck**: 4 creature cards (2x House Cat, Family Dog, Squirrel) + 3
+  item cards (Cat Carrier, 2x Band-Aid, Suburbs' own tutorial-only items)
+  vs. a Suburbs enemy roster (Rabbit/Robin/Hamster) -- swapped from the
+  original City matchup (Alley Kitten/Raccoon/Crow vs.
+  Sewer Rat/Cockroach/Opossum) once the Suburbs roster existed, to actually
+  exercise the new faction.
 - Verified computationally: initial draw size, summoning correctly costs
   energy and does *not* discard the card, a defeated summon's card *does*
   land in discard, healing heals and consumes the item, capture at low HP
@@ -209,6 +218,33 @@ layer.
 - **Entry point unchanged**: the "⚔ Battle Test" button in the card
   browser's top bar. Still no real "build your deck" flow -- the deck
   composition above is hardcoded in battle.gd.
+- **Physical deck pile (new, built 2026-07-11)**: a clickable stacked-card
+  widget (`deck_pile_button.tscn`) sits beside the hand row showing the
+  live draw-pile count. Tapping it opens a full-screen overlay
+  (`DeckViewOverlay`) listing every card still in the draw pile (read-only
+  `battle_hand_card_tile` instances, sorted alphabetically, in a scrolling
+  grid) so the player can actually check what's left instead of only
+  seeing a number. `PileCountsLabel` was trimmed to just Discard/Hand since
+  the deck count now lives on the pile widget itself.
+- **Draw animation (new, built 2026-07-11)**: `BattleState` gained a
+  `cards_drawn` signal that fires with just the newly drawn cards (not the
+  whole hand) after any draw -- the opening hand and every subsequent
+  turn's refill both go through the same `_draw_hand()` path, so one signal
+  covers both. Required splitting the initial draw out of `BattleState`'s
+  constructor into an explicit `start_battle()` call: the constructor used
+  to draw immediately, which fired the signal before battle.gd had a chance
+  to connect to it. On the UI side, newly drawn hand tiles start invisible
+  and a throwaway "ghost" copy flies from the deck pile's on-screen
+  position to the tile's real (already laid-out) position, growing from
+  deck-sized to full hand-card size; multiple cards (e.g. the 5-card
+  opening hand) stagger by 0.1s each so they read as being dealt one at a
+  time. The ghost animates, never the real tile, so it can't desync from
+  whatever the hand row's container decides the actual layout is.
+- **Health bars restyled (new, built 2026-07-11)**: the HP `ProgressBar` on
+  each battlefield tile now uses a custom rounded/bordered background plus
+  a fill color that switches green (>60% HP) / yellow (25-60%) / red
+  (<25%) instead of the flat default ProgressBar look, so HP state reads at
+  a glance during a fight.
 
 ## Run structure (discussed, not yet decided/built)
 

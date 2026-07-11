@@ -19,9 +19,39 @@ signal tapped(combatant: BattleCombatant)
 
 var combatant: BattleCombatant
 
+## Built once and mutated per-refresh rather than a single shared/theme
+## resource -- each tile needs its own fill color, and StyleBoxFlat is a
+## Resource (shared by reference) unless duplicated per instance.
+var _hp_bg_style: StyleBoxFlat
+var _hp_fill_style: StyleBoxFlat
+
+const HP_COLOR_HIGH := Color(0.3, 0.8, 0.3)
+const HP_COLOR_MID := Color(0.9, 0.75, 0.2)
+const HP_COLOR_LOW := Color(0.85, 0.25, 0.25)
+
 
 func _ready() -> void:
 	pressed.connect(func() -> void: tapped.emit(combatant))
+
+	_hp_bg_style = StyleBoxFlat.new()
+	_hp_bg_style.bg_color = Color(0.08, 0.08, 0.1, 0.9)
+	_hp_bg_style.corner_radius_top_left = 6
+	_hp_bg_style.corner_radius_top_right = 6
+	_hp_bg_style.corner_radius_bottom_left = 6
+	_hp_bg_style.corner_radius_bottom_right = 6
+	_hp_bg_style.border_width_left = 2
+	_hp_bg_style.border_width_right = 2
+	_hp_bg_style.border_width_top = 2
+	_hp_bg_style.border_width_bottom = 2
+	_hp_bg_style.border_color = Color(0, 0, 0, 0.8)
+	hp_bar.add_theme_stylebox_override("background", _hp_bg_style)
+
+	_hp_fill_style = StyleBoxFlat.new()
+	_hp_fill_style.corner_radius_top_left = 6
+	_hp_fill_style.corner_radius_top_right = 6
+	_hp_fill_style.corner_radius_bottom_left = 6
+	_hp_fill_style.corner_radius_bottom_right = 6
+	hp_bar.add_theme_stylebox_override("fill", _hp_fill_style)
 
 
 func setup(c: BattleCombatant) -> void:
@@ -36,6 +66,14 @@ func setup(c: BattleCombatant) -> void:
 func refresh() -> void:
 	hp_bar.max_value = combatant.data.max_health
 	hp_bar.value = combatant.current_hp
+
+	var hp_fraction := float(combatant.current_hp) / float(combatant.data.max_health)
+	if hp_fraction > 0.6:
+		_hp_fill_style.bg_color = HP_COLOR_HIGH
+	elif hp_fraction > 0.25:
+		_hp_fill_style.bg_color = HP_COLOR_MID
+	else:
+		_hp_fill_style.bg_color = HP_COLOR_LOW
 
 	var text := "%d/%d HP" % [combatant.current_hp, combatant.data.max_health]
 	if combatant.block > 0:

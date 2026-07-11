@@ -38,6 +38,10 @@ signal state_changed
 ## Emitted right after a creature is summoned onto the player's team,
 ## so the UI can add a field tile for it without polling every frame.
 signal creature_summoned(combatant: BattleCombatant)
+## Emitted after any draw (initial hand or a turn's refill) with just the
+## newly drawn cards -- not the whole hand -- so the UI can play a
+## deck-to-hand animation for exactly the cards that are new.
+signal cards_drawn(cards: Array[BaseCardData])
 
 var player_deck: Array[BaseCardData] = []
 var player_hand: Array[BaseCardData] = []
@@ -57,6 +61,13 @@ func _init(deck_cards: Array[BaseCardData], enemy_data: Array[CardData]) -> void
 	player_deck.shuffle()
 	for data in enemy_data:
 		enemy_team.append(BattleCombatant.new(data))
+
+
+## Draws the opening hand. Split out from _init() so the caller can
+## connect to cards_drawn (and any other signal) first -- a signal
+## emitted mid-constructor would otherwise fire before anything's
+## listening.
+func start_battle() -> void:
 	_draw_hand()
 
 
@@ -201,6 +212,7 @@ func _discard_hand() -> void:
 ## discard pile is shuffled back into it and drawing continues -- the
 ## standard deckbuilder reshuffle.
 func _draw_hand() -> void:
+	var newly_drawn: Array[BaseCardData] = []
 	while player_hand.size() < HAND_SIZE:
 		if player_deck.is_empty():
 			if player_discard.is_empty():
@@ -209,7 +221,11 @@ func _draw_hand() -> void:
 			player_deck.shuffle()
 			player_discard.clear()
 			log_message.emit("Reshuffled discard into the draw pile.")
-		player_hand.append(player_deck.pop_back())
+		var card: BaseCardData = player_deck.pop_back()
+		player_hand.append(card)
+		newly_drawn.append(card)
+	if not newly_drawn.is_empty():
+		cards_drawn.emit(newly_drawn)
 
 
 func _check_battle_over() -> void:

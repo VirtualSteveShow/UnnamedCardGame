@@ -19,14 +19,23 @@ extends Control
 
 const CombatantTileScene := preload("res://scenes/battle/battle_combatant_tile.tscn")
 const HandTileScene := preload("res://scenes/battle/battle_hand_card_tile.tscn")
+const DeckPileButtonScene := preload("res://scenes/battle/deck_pile_button.tscn")
+
+## Draw animation: a "ghost" copy of the drawn card flies from the deck
+## pile's on-screen position to its final hand-row slot, growing from a
+## small deck-sized card to full hand-card size. Multiple cards drawn at
+## once (e.g. the opening hand) are staggered so they read as being
+## dealt one at a time instead of all popping in together.
+const DRAW_ANIM_DURATION := 0.35
+const DRAW_ANIM_STAGGER := 0.1
 
 ## Mixed creature + item cards, per design direction: one deck, not
 ## separate creature/action decks. A couple of duplicates included so a
 ## short test battle can actually exercise the reshuffle-on-empty path.
 ## Suburbs Faction for now (was City) to exercise the new roster -- item
-## cards are still City-flavored since Suburbs doesn't have its own yet.
+## cards are Suburbs' own tutorial-only pair (Cat Carrier + Band-Aid).
 const PLAYER_DECK_CREATURES := ["House Cat", "House Cat", "Family Dog", "Squirrel"]
-const PLAYER_DECK_ITEMS := ["Alley Snare", "Weighted Net", "Back-Alley Bandage", "Back-Alley Bandage"]
+const PLAYER_DECK_ITEMS := ["Cat Carrier", "Band-Aid", "Band-Aid"]
 
 const ENEMY_TEAM_NAMES := ["Rabbit", "Robin", "Hamster"]
 
@@ -42,10 +51,17 @@ const MAX_LOG_LINES := 5
 @onready var ability_buttons_row: HBoxContainer = $AbilityButtonsRow
 @onready var end_turn_button: Button = $EndTurnButton
 @onready var return_button: Button = $ReturnButton
+@onready var deck_pile_button := $DeckPileButton
+@onready var animation_layer: Control = $AnimationLayer
 
 @onready var result_overlay: Control = $ResultOverlay
 @onready var result_label: Label = $ResultOverlay/ResultPanel/ResultLabel
 @onready var result_return_button: Button = $ResultOverlay/ResultPanel/ReturnButton
+
+@onready var deck_view_overlay: Control = $DeckViewOverlay
+@onready var deck_view_title: Label = $DeckViewOverlay/DeckViewPanel/TitleLabel
+@onready var deck_view_grid: GridContainer = $DeckViewOverlay/DeckViewPanel/ScrollContainer/GridContainer
+@onready var deck_view_close_button: Button = $DeckViewOverlay/DeckViewPanel/CloseButton
 
 var battle: BattleState
 var _log_lines: Array[String] = []
@@ -63,6 +79,12 @@ var _ability_buttons: Array[Button] = []
 var _selected_source: BattleCombatant = null
 var _pending_ability: CardAbility = null
 var _pending_item: ItemCardData = null
+
+## Cards from the most recent cards_drawn signal, consumed (and cleared)
+## the next time _rebuild_hand_tiles() runs -- lets that rebuild know
+## which of the tiles it's about to create should play the fly-in
+## animation instead of just appearing instantly.
+var _pending_draw_cards: Array = []
 
 
 func _ready() -> void:
@@ -83,6 +105,7 @@ func _ready() -> void:
 	battle.log_message.connect(_on_log_message)
 	battle.state_changed.connect(_on_state_changed)
 	battle.creature_summoned.connect(_on_creature_summoned)
+	battle.cards_drawn.connect(_on_cards_drawn)
 
 	for combatant in battle.enemy_team:
 		var tile := CombatantTileScene.instantiate()
@@ -94,8 +117,11 @@ func _ready() -> void:
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
 	return_button.pressed.connect(_return_to_browser)
 	result_return_button.pressed.connect(_return_to_browser)
+	deck_pile_button.tapped.connect(_on_deck_pile_tapped)
+	deck_view_close_button.pressed.connect(func() -> void: deck_view_overlay.visible = false)
 	get_viewport().size_changed.connect(_refresh_all)
 
+	battle.start_battle()
 	_rebuild_hand_tiles()
 	_refresh_all()
 
@@ -168,6 +194,26 @@ func _on_log_message(text: String) -> void:
 	log_label.text = "\n".join(_log_lines)
 
 
+func _on_cards_drawn(cards: Array) -> void:
+	_pending_draw_cards.append_array(cards)
+
+
+func _on_deck_pile_tapped() -> void:
+	for child in deck_view_grid.get_children():
+		child.queue_free()
+
+	var cards := battle.player_deck.duplicate()
+	cards.sort_custom(func(a, b) -> bool: return a.card_name < b.card_name)
+	deck_view_title.text = "Draw Pile (%d)" % cards.size()
+	for card in cards:
+		var tile := HandTileScene.instantiate()
+		deck_view_grid.add_child(tile)
+		tile.setup(card)
+		tile.disabled = true
+
+	deck_view_overlay.visible = true
+
+
 func _on_state_changed() -> void:
 	_remove_dead_tiles()
 	if _selected_source == null or not _selected_source.is_alive():
@@ -205,6 +251,10 @@ func _rebuild_hand_tiles() -> void:
 		tile.queue_free()
 	_hand_tiles.clear()
 
+	var cards_to_animate := _pending_draw_cards.duplicate()
+	_pending_draw_cards.clear()
+	var tiles_to_animate: Array = []
+
 	for card in battle.player_hand:
 		var tile := HandTileScene.instantiate()
 		hand_row.add_child(tile)
@@ -213,6 +263,65 @@ func _rebuild_hand_tiles() -> void:
 		tile.set_selected(card == _pending_item)
 		tile.tapped.connect(_on_hand_card_tapped)
 		_hand_tiles.append(tile)
+		if card in cards_to_animate:
+			tile.modulate.a = 0.0
+			tiles_to_animate.append(tile)
+
+	if not tiles_to_animate.is_empty():
+		_animate_drawn_cards(tiles_to_animate)
+
+
+## Waits for the hand row to finish laying out (a Container's sort
+## happens on a deferred pass, not the instant a child is added or
+## resized) so each tile's global_position/size reflects where it's
+## actually about to sit before spawning a ghost to fly there -- then
+## staggers each ghost's flight so a multi-card draw reads as cards
+## being dealt one at a time rather than all popping in together.
+func _animate_drawn_cards(tiles: Array) -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	for i in tiles.size():
+		var tile = tiles[i]
+		if is_instance_valid(tile):
+			_fly_card_from_deck(tile, i * DRAW_ANIM_STAGGER)
+
+
+## Spawns a throwaway "ghost" copy of the tile's card that visually
+## travels from the deck pile to the tile's real (already laid-out)
+## position, then reveals the real tile and discards the ghost. The
+## real tile never moves -- only the ghost animates -- so this can't
+## desync from whatever the hand row's container decides the layout is.
+func _fly_card_from_deck(tile: Control, delay: float) -> void:
+	var ghost := HandTileScene.instantiate()
+	animation_layer.add_child(ghost)
+	ghost.setup(tile.card)
+	ghost.disabled = true
+	ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ghost.size = tile.size
+
+	var target_pos: Vector2 = tile.global_position
+	var target_size: Vector2 = tile.size
+	var start_size: Vector2 = target_size * 0.3
+	var start_pos: Vector2 = deck_pile_button.global_position \
+		+ deck_pile_button.size / 2.0 - start_size / 2.0
+
+	ghost.global_position = start_pos
+	ghost.size = start_size
+	ghost.modulate.a = 0.0
+
+	var tween := create_tween()
+	tween.tween_interval(delay)
+	tween.tween_property(ghost, "modulate:a", 1.0, 0.08)
+	tween.parallel().tween_property(ghost, "global_position", target_pos, DRAW_ANIM_DURATION) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(ghost, "size", target_size, DRAW_ANIM_DURATION) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_callback(func() -> void:
+		if is_instance_valid(tile):
+			tile.modulate.a = 1.0
+		ghost.queue_free()
+	)
 
 
 ## Removes the field tile for any combatant whose HP hit 0, on either
@@ -279,8 +388,9 @@ func _refresh_all() -> void:
 		tile.refresh()
 
 	energy_label.text = "Energy: %d/%d" % [battle.energy, BattleState.ENERGY_PER_TURN]
-	pile_counts_label.text = "Deck: %d  ·  Discard: %d  ·  Hand: %d" % [
-		battle.player_deck.size(), battle.player_discard.size(), battle.player_hand.size()]
+	pile_counts_label.text = "Discard: %d  ·  Hand: %d" % [
+		battle.player_discard.size(), battle.player_hand.size()]
+	deck_pile_button.set_count(battle.player_deck.size())
 
 	if battle.is_over:
 		hint_label.text = ""
