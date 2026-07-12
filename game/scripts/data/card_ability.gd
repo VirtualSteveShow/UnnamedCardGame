@@ -15,3 +15,8 @@ extends Resource
 ## resets it back to 0 at the start of the user's following turn (same
 ## convention Slay the Spire uses).
 @export var block: int = 0
+
+## HP restored to the player when this ability resolves. Currently only
+## used by on-summon abilities (CardData.on_summon_ability) -- regular
+## creature abilities don't heal yet.
+@export var heal: int = 0

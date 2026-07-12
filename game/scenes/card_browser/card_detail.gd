@@ -61,23 +61,34 @@ func show_card(data: CardData) -> void:
 		child.queue_free()
 	for ability in data.abilities:
 		ability_list.add_child(_build_ability_row(ability))
+	if data.on_summon_ability != null:
+		ability_list.add_child(_build_ability_row(data.on_summon_ability, "On Summon: "))
 
 	visible = true
 
 
-func _build_ability_row(ability: CardAbility) -> HBoxContainer:
+## `prefix` is used for the on-summon ability row (see show_card) -- an
+## on-summon ability isn't a playable hand card, so its right-hand label
+## shows its effect instead of an energy cost, which wouldn't mean
+## anything for it (it always resolves for free, automatically).
+func _build_ability_row(ability: CardAbility, prefix: String = "") -> HBoxContainer:
 	var row := HBoxContainer.new()
 
 	var name_lbl := Label.new()
-	name_lbl.text = ability.ability_name
+	name_lbl.text = prefix + ability.ability_name
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_lbl.add_theme_font_size_override("font_size", ABILITY_ROW_FONT_SIZE)
 	row.add_child(name_lbl)
 
-	var cost_lbl := Label.new()
-	cost_lbl.text = "%d energy" % ability.energy_cost
-	cost_lbl.add_theme_font_size_override("font_size", ABILITY_ROW_FONT_SIZE)
-	row.add_child(cost_lbl)
+	var right_lbl := Label.new()
+	if prefix.is_empty():
+		right_lbl.text = "%d energy" % ability.energy_cost
+	elif ability.damage > 0:
+		right_lbl.text = "%d dmg" % ability.damage
+	elif ability.heal > 0:
+		right_lbl.text = "Heal %d" % ability.heal
+	right_lbl.add_theme_font_size_override("font_size", ABILITY_ROW_FONT_SIZE)
+	row.add_child(right_lbl)
 
 	return row
 

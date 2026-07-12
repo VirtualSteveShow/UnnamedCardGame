@@ -1,58 +1,46 @@
 class_name BattleStateV2
 extends RefCounted
 ## Combat logic for the "hand-based" combat prototype -- see
-## docs/gameplay-notes.md's Experimental Mode section for the full design
-## rationale. A deliberately PARALLEL system to BattleState, not a
-## replacement or refactor of it: nothing here is shared with or touches
-## the original battlefield combat, so that mode stays fully intact and
-## playable exactly as before.
+## docs/gameplay-notes.md for the full design rationale. This is now the
+## project's one and only combat system (the original persistent-
+## battlefield prototype was removed).
 ##
-## The core difference from BattleState: captured creatures don't have HP
-## and never get permanently summoned onto a persistent battlefield.
-## Playing a creature card discards it immediately and generates one
-## AbilityCardData per ability it has directly into hand (bypassing the
-## draw pile -- these are freshly created, not drawn). Playing one of
-## those ability cards resolves its effect (damage to a chosen enemy, or
-## block for the player) then discards, same single-use lifecycle an item
-## card already has. There's no "select a creature, then pick its
-## ability" step anymore since abilities ARE hand cards now -- every
-## playable card just gets tapped directly, optionally followed by a
-## target tap for damaging effects.
+## Playing a creature card discards it immediately, gives it a live,
+## HP-tracked spot on the field (field_creatures), and generates one
+## AbilityCardData per currently-unlocked ability directly into hand
+## (bypassing the draw pile -- these are freshly created, not drawn).
+## Fielded creatures regenerate their unlocked abilities back into hand
+## at the start of every player turn (see _regenerate_field_abilities),
+## with higher-index abilities staggered in over a few turns rather than
+## all available immediately -- see turns_on_field on BattleCombatant.
+## A fielded creature only leaves when its HP reaches 0.
 ##
-## The played creature DOES get a temporary, non-HP field presence
-## though (field_monsters) -- it "stays out" for as long as at least one
-## of its ability cards is still in hand, purely as visual feedback, and
-## flees (creature_left_field) the moment none are left, whether they
-## were played or discarded unplayed at end of turn.
-##
-## The player has a personal HP/block pool instead of a battlefield of
-## creatures; enemies attack that pool directly. Enemies themselves are
-## unchanged from BattleState -- same fixed HP-based roster (BattleCombatant),
-## same turn structure -- only their target changed.
+## The player has a personal HP/block pool, same as before; enemies now
+## pick randomly between the player and any living field creature each
+## time they attack, mirroring how a fielded creature can also be
+## targeted by the player's own damaging ability/item cards.
 
 const ENERGY_PER_TURN := 3
 const HAND_SIZE := 5
-const PLAYER_MAX_HP := 30
+const PLAYER_MAX_HP := 20
 
 signal log_message(text: String)
 signal state_changed
 ## Emitted after any draw (initial hand, a turn's refill, OR a creature
-## card releasing its ability cards into hand) with just the newly added
-## cards -- not the whole hand -- so the UI can play a deck-to-hand (or
+## entering/regenerating on the field) with just the newly added cards --
+## not the whole hand -- so the UI can play a deck-to-hand (or
 ## hand-internal) animation for exactly what's new.
 signal cards_drawn(cards: Array[BaseCardData])
-## Emitted right when an ability card resolves, before state_changed, so
-## the UI can play a "the monster pops out and attacks" animation using
-## the source creature's battle sprite before the damage/log updates land.
+## Emitted right when an ability card (or an on-summon attack) resolves,
+## before state_changed, so the UI can play a "the monster pops out and
+## attacks" animation using the source creature's battle sprite before
+## the damage/log updates land. source_creature is null for player-only
+## ability cards not tied to any creature.
 signal ability_played(card: AbilityCardData, target: BattleCombatant)
-## Emitted right after a played creature takes up a spot on the field
-## (see field_monsters).
-signal creature_entered_field(card: CardData)
-## Emitted once none of a fielded creature's ability cards are left in
-## hand anymore -- whether because they were all played, or because the
-## hand discarded at end of turn with some still unplayed. The creature
-## "flees" at that point; see field_monsters for the rule.
-signal creature_left_field(card: CardData)
+## Emitted right after a played creature takes up a spot on the field.
+signal creature_entered_field(combatant: BattleCombatant)
+## Emitted once a fielded creature's HP reaches 0.
+signal creature_left_field(combatant: BattleCombatant)
 
 var player_deck: Array[BaseCardData] = []
 var player_hand: Array[BaseCardData] = []
@@ -62,12 +50,9 @@ var player_hp: int = PLAYER_MAX_HP
 var player_max_hp: int = PLAYER_MAX_HP
 var player_block: int = 0
 
-## Creatures currently "on the field" -- purely presentational, no HP,
-## not targetable. A played creature stays here for as long as at least
-## one of the ability cards it released is still somewhere in
-## player_hand; the moment none are left (played or discarded), it's
-## pruned and creature_left_field fires. See _prune_fled_monsters().
-var field_monsters: Array[CardData] = []
+## Creatures currently on the field, alive with their own HP -- see
+## BattleCombatant. A played creature stays here until its HP reaches 0.
+var field_creatures: Array[BattleCombatant] = []
 
 var enemy_team: Array[BattleCombatant] = []
 var energy: int = ENERGY_PER_TURN
@@ -100,51 +85,92 @@ func can_play_card(card: BaseCardData) -> bool:
 	return is_player_turn and not is_over and energy >= card.energy_cost and player_hand.has(card)
 
 
-## Playing a creature card doesn't summon it -- it's discarded immediately
-## and one AbilityCardData per ability it has is created straight into
-## hand instead, so each of the creature's moves becomes its own playable
-## card. The first ability generated is always free (0 energy) --
-## playing the creature card already costs energy, and the hand discards
-## at end of turn regardless of what's left unplayed, so without this a
-## creature played late in a turn (or on a tight energy budget) could
-## release ability cards you can't actually afford to use before they're
-## discarded unused. Overridden here rather than in CardDatabase's own
-## ability costs so this stays scoped to this mode's economy -- the
-## original battlefield combat's per-turn repeat-use economy doesn't have
-## the same problem and shouldn't change.
-func play_creature_card(card: CardData) -> void:
+## Playing a creature card doesn't discard it into the void -- it takes a
+## live, HP-tracked spot on the field (field_creatures) and its first
+## unlocked ability is generated straight into hand as its own playable
+## card, always free (0 energy): playing the creature card already costs
+## energy, and the hand discards at end of turn regardless of what's left
+## unplayed, so without this a creature played late in a turn (or on a
+## tight energy budget) could release a card you can't actually afford to
+## use before it's discarded unused. Later abilities stagger in via
+## _regenerate_field_abilities instead, at full cost.
+##
+## target is only required if the creature has an on-summon ability that
+## deals damage (see CardData.on_summon_ability) -- the caller (battle_v2.gd's
+## _card_needs_target) is expected to have already checked that before
+## the drag gesture was allowed to resolve without a target.
+func play_creature_card(card: CardData, target: BattleCombatant = null) -> void:
 	if not can_play_card(card):
+		return
+	if card.on_summon_ability != null and card.on_summon_ability.damage > 0 and target == null:
 		return
 
 	energy -= card.energy_cost
 	player_hand.erase(card)
 	player_discard.append(card)
 
-	field_monsters.append(card)
-	creature_entered_field.emit(card)
+	var combatant := BattleCombatant.new(card)
+	field_creatures.append(combatant)
+	creature_entered_field.emit(combatant)
+
+	if card.on_summon_ability != null:
+		_resolve_on_summon(card, card.on_summon_ability, target)
 
 	var generated: Array[BaseCardData] = []
-	for i in card.abilities.size():
-		var ability: CardAbility = card.abilities[i]
-		var ability_card := AbilityCardData.new()
-		ability_card.source_creature = card
-		ability_card.ability = ability
-		ability_card.card_name = "%s: %s" % [card.card_name, ability.ability_name]
-		ability_card.art_texture = card.get_battle_texture()
-		ability_card.energy_cost = 0 if i == 0 else ability.energy_cost
-		player_hand.append(ability_card)
-		generated.append(ability_card)
+	if not card.abilities.is_empty():
+		generated.append(_make_ability_card(card, card.abilities[0], true))
+		player_hand.append_array(generated)
 
-	log_message.emit("%s enters the field, its moves enter your hand!" % card.card_name)
+	log_message.emit("%s enters the field!" % card.card_name)
 	if not generated.is_empty():
 		cards_drawn.emit(generated)
-	_prune_fled_monsters() # handles the (currently impossible) 0-ability edge case
+	_check_battle_over()
 	state_changed.emit()
 
 
-## Resolves a generated ability card: damage lands on target (required for
-## damaging abilities), block adds to the player's own block pool. Always
-## consumes the card into discard once played.
+## Resolves a creature's on-summon ability immediately after it enters
+## the field: damage requires (and was already validated to have) a
+## target, healing always applies to the player. Reuses the ability_played
+## signal for the damage case so the UI plays the same "pops out and
+## attacks" animation a regular ability card would, without needing a
+## real hand card to back it.
+func _resolve_on_summon(source: CardData, ability: CardAbility, target: BattleCombatant) -> void:
+	if ability.damage > 0 and target != null:
+		var anim_card := AbilityCardData.new()
+		anim_card.source_creature = source
+		anim_card.ability = ability
+		anim_card.art_texture = source.get_battle_texture()
+		ability_played.emit(anim_card, target)
+
+		var dealt := target.take_damage(ability.damage)
+		log_message.emit("%s's %s hits %s for %d damage!" % [
+			source.card_name, ability.ability_name, target.data.card_name, dealt])
+		_check_battle_over()
+
+	if ability.heal > 0:
+		var healed: int = mini(ability.heal, player_max_hp - player_hp)
+		player_hp += healed
+		log_message.emit("%s's %s heals you for %d HP." % [source.card_name, ability.ability_name, healed])
+
+
+## Builds one playable AbilityCardData for a creature's ability. The
+## first ability a creature ever grants (on summon) is always free; every
+## later regeneration costs the ability's normal energy.
+func _make_ability_card(source: CardData, ability: CardAbility, free: bool) -> AbilityCardData:
+	var ability_card := AbilityCardData.new()
+	ability_card.source_creature = source
+	ability_card.ability = ability
+	ability_card.card_name = "%s: %s" % [source.card_name, ability.ability_name]
+	ability_card.art_texture = source.get_battle_texture()
+	ability_card.energy_cost = 0 if free else ability.energy_cost
+	return ability_card
+
+
+## Resolves a played ability card: damage lands on target (required for
+## damaging abilities), block adds to the player's own block pool.
+## source_creature is null for standalone player ability cards not tied
+## to any creature (see battle_v2.gd's PLAYER_ABILITY cards) -- handled
+## with a generic "You" in the log instead of a creature name.
 func play_ability_card(card: AbilityCardData, target: BattleCombatant) -> void:
 	if not can_play_card(card):
 		return
@@ -158,17 +184,16 @@ func play_ability_card(card: AbilityCardData, target: BattleCombatant) -> void:
 	ability_played.emit(card, target)
 
 	var ability := card.ability
+	var source_name: String = card.source_creature.card_name if card.source_creature else "You"
 	player_block += ability.block
 	if ability.damage > 0:
 		var dealt := target.take_damage(ability.damage)
 		log_message.emit("%s used %s on %s for %d damage!" % [
-			card.source_creature.card_name, ability.ability_name, target.data.card_name, dealt])
+			source_name, ability.ability_name, target.data.card_name, dealt])
 	else:
-		log_message.emit("%s used %s -- you gained %d block." % [
-			card.source_creature.card_name, ability.ability_name, ability.block])
+		log_message.emit("%s used %s -- you gained %d block." % [source_name, ability.ability_name, ability.block])
 
 	_check_battle_over()
-	_prune_fled_monsters()
 	state_changed.emit()
 
 
@@ -212,7 +237,6 @@ func end_player_turn() -> void:
 		return
 	is_player_turn = false
 	_discard_hand()
-	_prune_fled_monsters()
 	state_changed.emit()
 	_run_enemy_turn()
 
@@ -228,8 +252,16 @@ func _run_enemy_turn() -> void:
 		var ability: CardAbility = enemy.data.abilities[randi() % enemy.data.abilities.size()]
 		enemy.block += ability.block
 		if ability.damage > 0:
-			var dealt := _damage_player(ability.damage)
-			log_message.emit("%s used %s on you for %d damage!" % [enemy.data.card_name, ability.ability_name, dealt])
+			var target := _pick_enemy_target()
+			if target == null:
+				var dealt := _damage_player(ability.damage)
+				log_message.emit("%s used %s on you for %d damage!" % [enemy.data.card_name, ability.ability_name, dealt])
+			else:
+				var dealt := target.take_damage(ability.damage)
+				log_message.emit("%s used %s on %s for %d damage!" % [
+					enemy.data.card_name, ability.ability_name, target.data.card_name, dealt])
+				if not target.is_alive():
+					_handle_field_creature_defeated(target)
 		else:
 			log_message.emit("%s used %s and gained %d block." % [enemy.data.card_name, ability.ability_name, ability.block])
 		_check_battle_over()
@@ -237,6 +269,38 @@ func _run_enemy_turn() -> void:
 	if not is_over:
 		_start_player_turn()
 	state_changed.emit()
+
+
+## Picks who an enemy attacks: the player, or one of the player's living
+## field creatures, chosen with equal weight across whichever of those
+## are actually available. Returns null to mean "the player".
+func _pick_enemy_target() -> BattleCombatant:
+	var pool: Array = [null]
+	for creature in field_creatures:
+		if creature.is_alive():
+			pool.append(creature)
+	return pool[randi() % pool.size()]
+
+
+## Removes a field creature whose HP just hit 0: drops it from the field,
+## strips any of its ability cards out of both hand AND discard (their
+## stats no longer mean anything once the creature that granted them is
+## gone -- left in discard, a stale one could otherwise get reshuffled
+## back into the draw pile and resurface in a later hand), and fires
+## creature_left_field.
+func _handle_field_creature_defeated(combatant: BattleCombatant) -> void:
+	field_creatures.erase(combatant)
+	_strip_ability_cards_for(combatant.data, player_hand)
+	_strip_ability_cards_for(combatant.data, player_discard)
+	log_message.emit("%s was defeated!" % combatant.data.card_name)
+	creature_left_field.emit(combatant)
+
+
+func _strip_ability_cards_for(source: CardData, pile: Array[BaseCardData]) -> void:
+	for i in range(pile.size() - 1, -1, -1):
+		var c: BaseCardData = pile[i]
+		if c is AbilityCardData and c.source_creature == source:
+			pile.remove_at(i)
 
 
 ## Applies incoming damage after subtracting the player's own block, and
@@ -254,8 +318,31 @@ func _start_player_turn() -> void:
 	player_block = 0
 	energy = ENERGY_PER_TURN
 	is_player_turn = true
+	_regenerate_field_abilities()
 	_draw_hand()
 	log_message.emit("-- Your turn --")
+
+
+## Every fielded creature ages up by one turn, then regenerates a fresh
+## ability card for every ability it's had time to unlock -- ability
+## index N unlocks once turns_on_field reaches N, so a 2-ability creature
+## only offers its first move the turn after being summoned, and both
+## from the turn after that. Bypasses HAND_SIZE the same way the initial
+## on-summon ability card does (appended directly, not drawn) -- a full
+## hand still crowds out that turn's normal draw via _draw_hand's own
+## size check, exactly as before.
+func _regenerate_field_abilities() -> void:
+	var generated: Array[BaseCardData] = []
+	for creature in field_creatures:
+		if not creature.is_alive():
+			continue
+		creature.turns_on_field += 1
+		for i in creature.data.abilities.size():
+			if i <= creature.turns_on_field:
+				generated.append(_make_ability_card(creature.data, creature.data.abilities[i], false))
+	if not generated.is_empty():
+		player_hand.append_array(generated)
+		cards_drawn.emit(generated)
 
 
 ## Discards whatever's left in hand (Slay the Spire convention: unplayed
@@ -284,23 +371,6 @@ func _draw_hand() -> void:
 		newly_drawn.append(card)
 	if not newly_drawn.is_empty():
 		cards_drawn.emit(newly_drawn)
-
-
-## Removes any field monster with no ability cards left anywhere in
-## player_hand and fires creature_left_field for each -- called after
-## anything that can remove a card from hand (playing an ability card,
-## the turn-end discard).
-func _prune_fled_monsters() -> void:
-	for i in range(field_monsters.size() - 1, -1, -1):
-		var creature: CardData = field_monsters[i]
-		var still_has_card := false
-		for c in player_hand:
-			if c is AbilityCardData and c.source_creature == creature:
-				still_has_card = true
-				break
-		if not still_has_card:
-			field_monsters.remove_at(i)
-			creature_left_field.emit(creature)
 
 
 func _check_battle_over() -> void:

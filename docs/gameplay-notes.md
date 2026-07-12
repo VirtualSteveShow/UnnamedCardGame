@@ -632,39 +632,60 @@ go to Title now (previously they went to the card browser), and the card
 browser gained its own "← Title" button in place of the two battle-launch
 buttons it used to have.
 
-## Gameplay ideas queued for testing (not yet built, 2026-07-12)
+## Gameplay pass: creature HP, staggered regen, on-summon, standalone cards (2026-07-12)
 
-Four ideas floated for the next pass on Deck Battle, roughly in the order
-they naturally build on each other:
+The four ideas queued up earlier this session are all built and verified
+(headless logic checks + a full battle_v2 play-test):
 
-1. **Recurring/staggered card regeneration.** Right now a creature's
-   ability cards are dealt once, at summon, and gone once played/discarded
-   (a creature only leaves the field once none of its ability cards remain
-   anywhere). Instead: every creature regenerates its ability card(s) at
-   the start of each of the *player's* turns, with higher-tier abilities
-   staggered in over a few turns rather than all available immediately --
-   e.g. a creature with 2 abilities might only offer its first for the
-   turn or two after being summoned, unlocking the second once it's been
-   on the field long enough. Reuses the index-based scaling convention
-   already used elsewhere in `CardDatabase` (ability index doubling as an
-   unlock-turn threshold). Needs at least one multi-ability creature in
-   the actual test roster to be observable (current Suburbs roster is all
-   single-ability).
-2. **Player creature HP.** Once cards regenerate instead of running out,
-   "leaves the field when out of cards" stops making sense as the fizzle
-   condition -- HP needs to come back for player creatures, matching how
-   enemies already work. Pairs with lowering player HP and leaning into
-   blocking with creatures as a regular defensive option, rather than
-   creatures being purely a source of extra attacks.
-3. **Standalone player ability cards**, not tied to any creature -- e.g. a
-   direct-damage "Rock Throw" or a block card the player can always draw
-   into, independent of which creatures happen to be on the field.
-4. **On-summon creature abilities** -- e.g. "on summon, attack target for
-   2" or "on summon, heal target for 2," firing once immediately when the
-   creature is played rather than needing to be manually triggered later.
+1. **Recurring/staggered card regeneration.** A creature's abilities no
+   longer get dealt once and run out -- every fielded creature
+   regenerates a fresh ability card for each ability it's had time to
+   unlock at the start of every player turn (`BattleStateV2.
+   _regenerate_field_abilities`). Ability index N unlocks once
+   `BattleCombatant.turns_on_field` reaches N, so a 2-ability creature
+   only offers its first move the turn it's summoned, both from the turn
+   after. Raccoon (City Faction, 2 abilities) was swapped into
+   battle_v2's test deck in place of a second House Cat specifically so
+   this is observable -- every actual Suburbs creature is still
+   single-ability by design.
+2. **Player creature HP is back.** Field creatures are now live
+   `BattleCombatant`s (same class enemies already used) with their own
+   HP/block, not just a presentational card. A creature only leaves the
+   field when its HP hits 0, not when its hand cards run out -- the old
+   "prune when no cards left" rule is gone entirely. `PLAYER_MAX_HP`
+   dropped from 30 to 20 to make blocking/creature HP matter more.
+   Enemies now pick randomly, with equal weight, between the player and
+   any living field creature each time they attack
+   (`BattleStateV2._pick_enemy_target`). A defeated field creature has
+   its ability cards stripped from BOTH hand and discard (a stale card
+   left in discard could otherwise reshuffle back into the draw pile and
+   resurface after the creature that granted it is long gone).
+3. **Standalone player ability cards.** Two examples -- "Rock Throw" (1
+   energy, 4 damage) and "Brace" (1 energy, 4 block) -- built directly as
+   `AbilityCardData` with `source_creature` left null and the player's
+   own battle sprite as their art, added straight into battle_v2's test
+   deck. Playing one pops from the player's own position (the existing
+   pop-animation code already defaulted to that whenever no field tile
+   matches the source, so this needed no new animation path -- just
+   null-safety in the log-message formatting).
+4. **On-summon creature abilities.** New `CardData.on_summon_ability`
+   (nullable) and a new `CardAbility.heal` field. House Cat now heals the
+   player for 2 on summon ("Nuzzle"); Family Dog now deals 2 damage to a
+   dragged-to target on summon ("Warning Bite") -- both wired into the
+   actual test deck so they're observable, not just theoretical. A
+   damaging on-summon reuses the regular ability-pop animation via a
+   throwaway `AbilityCardData` built just for the animation signal, so it
+   didn't need a second visual system.
+
+Also added this pass: a slim HP bar on field creature tiles (matching the
+enemy tile convention), a looping idle bob/squash on the player, enemy,
+and field creature art (`scripts/battle_v2/idle_bob.gd`, shared by all
+three), a static drop-shadow oval under each of their feet, and a quick
+impact squash on the ability-pop sprite when it lands a hit -- the first
+pass at the animation polish queued up alongside the gameplay ideas.
 
 Battle screen UI/feel still needs another pass -- more feedback on that
-to come once these are in.
+to come once this round has been played on-device.
 
 ## TODO: backgrounds for all scenes
 

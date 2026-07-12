@@ -25,6 +25,12 @@ extends BaseCardData
 ## Abilities available to this creature.
 @export var abilities: Array[CardAbility] = []
 
+## Optional ability that fires once, immediately, when this creature is
+## summoned in Deck Battle (e.g. "on summon, attack target for 2" or "on
+## summon, heal for 2") -- separate from abilities, which become playable
+## hand cards instead. Null means no on-summon effect.
+@export var on_summon_ability: CardAbility = null
+
 ## Side-view sprite used on the battlefield when this creature is
 ## summoned into combat -- a full-body profile pose, distinct from
 ## art_texture's card-portrait framing. Null means no battle sprite yet

@@ -26,10 +26,19 @@ const FieldMonsterTileScene := preload("res://scenes/battle_v2/field_monster_til
 const DRAW_ANIM_DURATION := 0.35
 const DRAW_ANIM_STAGGER := 0.1
 
-const PLAYER_DECK_CREATURES := ["House Cat", "House Cat", "Family Dog", "Squirrel"]
+## Raccoon is deliberately included even though it's a City Faction card
+## (not Suburbs, like the rest of this test deck) -- it's the only
+## creature in the roster with more than one ability (Strike + Guard),
+## needed to actually observe staggered ability unlock in play. Every
+## Suburbs creature is single-ability by design (see CardDatabase).
+const PLAYER_DECK_CREATURES := ["House Cat", "Raccoon", "Family Dog", "Squirrel"]
 const PLAYER_DECK_ITEMS := ["Cat Carrier", "Band-Aid", "Band-Aid"]
 
 const ENEMY_TEAM_NAMES := ["Rabbit", "Robin", "Hamster"]
+
+## Standalone ability cards not tied to any creature -- see
+## _build_standalone_ability_cards().
+const PLAYER_ABILITY_SPRITE_PATH := "res://assets/player/player_battle_sprite.png"
 
 const MAX_LOG_LINES := 3
 
@@ -105,6 +114,7 @@ func _ready() -> void:
 			if item.card_name == item_name:
 				deck_cards.append(item)
 				break
+	deck_cards.append_array(_build_standalone_ability_cards())
 
 	var enemy_data: Array[CardData] = []
 	for creature_name in ENEMY_TEAM_NAMES:
@@ -138,6 +148,41 @@ func _ready() -> void:
 	battle.start_battle()
 	_rebuild_hand_tiles()
 	_refresh_all()
+
+
+## Two example ability cards not tied to any creature -- source_creature
+## stays null (AbilityCardData allows it), so they play from the player's
+## own position/sprite (see _on_ability_played) instead of a field tile.
+## Constructed directly here rather than via CardDatabase since they
+## aren't creature abilities -- there's no creature card that generates
+## them.
+func _build_standalone_ability_cards() -> Array[BaseCardData]:
+	var texture: Texture2D = load(PLAYER_ABILITY_SPRITE_PATH)
+	var cards: Array[BaseCardData] = []
+
+	var rock_ability := CardAbility.new()
+	rock_ability.ability_name = "Rock Throw"
+	rock_ability.energy_cost = 1
+	rock_ability.damage = 4
+	var rock_card := AbilityCardData.new()
+	rock_card.ability = rock_ability
+	rock_card.card_name = "Rock Throw"
+	rock_card.art_texture = texture
+	rock_card.energy_cost = rock_ability.energy_cost
+	cards.append(rock_card)
+
+	var brace_ability := CardAbility.new()
+	brace_ability.ability_name = "Brace"
+	brace_ability.energy_cost = 1
+	brace_ability.block = 4
+	var brace_card := AbilityCardData.new()
+	brace_card.ability = brace_ability
+	brace_card.card_name = "Brace"
+	brace_card.art_texture = texture
+	brace_card.energy_cost = brace_ability.energy_cost
+	cards.append(brace_card)
+
+	return cards
 
 
 func _on_viewport_resized() -> void:
@@ -244,6 +289,8 @@ func _card_needs_target(card: BaseCardData) -> bool:
 		return card.ability.damage > 0
 	if card is ItemCardData:
 		return card.item_type == ItemCardData.ItemType.CAPTURE
+	if card is CardData:
+		return card.on_summon_ability != null and card.on_summon_ability.damage > 0
 	return false
 
 
@@ -251,7 +298,9 @@ func _resolve_card_play(card: BaseCardData, target: BattleCombatant) -> bool:
 	if not battle.can_play_card(card):
 		return false
 	if card is CardData:
-		battle.play_creature_card(card)
+		if card.on_summon_ability != null and card.on_summon_ability.damage > 0 and target == null:
+			return false
+		battle.play_creature_card(card, target)
 		return true
 	elif card is AbilityCardData:
 		if card.ability.damage > 0 and target == null:
@@ -312,7 +361,15 @@ func _describe_card(card: BaseCardData) -> String:
 			parts.append("Gain %d Block." % card.ability.block)
 		return "\n".join(parts)
 	elif card is CardData:
-		return "Releases %d move card(s) into your hand." % card.abilities.size()
+		var desc := "Releases its first move into your hand."
+		if card.abilities.size() > 1:
+			desc = "Releases moves into your hand, one more each turn it stays on the field."
+		if card.on_summon_ability != null:
+			if card.on_summon_ability.damage > 0:
+				desc += "\nOn summon: deal %d damage." % card.on_summon_ability.damage
+			if card.on_summon_ability.heal > 0:
+				desc += "\nOn summon: heal %d HP." % card.on_summon_ability.heal
+		return desc
 	elif card is ItemCardData:
 		return card.description
 	return ""
@@ -335,10 +392,11 @@ func _on_cards_drawn(cards: Array) -> void:
 
 func _on_ability_played(card: AbilityCardData, target: BattleCombatant) -> void:
 	var start_pos: Vector2 = player_panel.global_position + player_panel.size / 2.0
-	for tile in _field_tiles:
-		if tile.source_creature == card.source_creature:
-			start_pos = tile.global_position + tile.size / 2.0
-			break
+	if card.source_creature != null:
+		for tile in _field_tiles:
+			if tile.combatant.data == card.source_creature:
+				start_pos = tile.global_position + tile.size / 2.0
+				break
 
 	var end_pos: Vector2 = start_pos
 	if target != null:
@@ -366,16 +424,23 @@ func _on_ability_played(card: AbilityCardData, target: BattleCombatant) -> void:
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.parallel().tween_property(sprite, "global_position", end_pos - big_size / 2.0, ABILITY_POP_DURATION) \
 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if target != null:
+		# A quick squash-then-recover on arrival reads as an impact --
+		# the fly-in tween above already handles the "swing", this is
+		# just the "hit" beat on top of it.
+		tween.tween_callback(func() -> void: sprite.pivot_offset = big_size / 2.0)
+		tween.tween_property(sprite, "scale", Vector2(1.25, 0.75), 0.05)
+		tween.tween_property(sprite, "scale", Vector2.ONE, 0.1)
 	tween.tween_interval(ABILITY_POP_HOLD)
 	tween.tween_property(sprite, "modulate:a", 0.0, 0.2)
 	tween.tween_callback(sprite.queue_free)
 
 
-func _on_creature_entered_field(card: CardData) -> void:
+func _on_creature_entered_field(combatant: BattleCombatant) -> void:
 	var tile := FieldMonsterTileScene.instantiate()
 	field_row.add_child(tile)
 	_lock_tile_size(tile)
-	tile.setup(card)
+	tile.setup(combatant)
 	_field_tiles.append(tile)
 
 	tile.modulate.a = 0.0
@@ -385,10 +450,10 @@ func _on_creature_entered_field(card: CardData) -> void:
 	_refresh_all()
 
 
-func _on_creature_left_field(card: CardData) -> void:
+func _on_creature_left_field(combatant: BattleCombatant) -> void:
 	var tile_to_remove = null
 	for tile in _field_tiles:
-		if tile.source_creature == card:
+		if tile.combatant == combatant:
 			tile_to_remove = tile
 			break
 	if tile_to_remove == null:
@@ -627,6 +692,8 @@ func _refresh_all() -> void:
 	_resize_field_row()
 
 	for tile in _enemy_tiles:
+		tile.refresh()
+	for tile in _field_tiles:
 		tile.refresh()
 	player_panel.refresh(battle.player_hp, battle.player_max_hp, battle.player_block)
 

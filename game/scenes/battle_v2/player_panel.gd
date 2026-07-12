@@ -10,6 +10,7 @@ extends Panel
 ## enemies; only this project's OTHER, non-StS-styled tiles use a
 ## green/yellow/red scheme).
 
+@onready var art_rect: TextureRect = $Art
 @onready var hp_bar: ProgressBar = $HpBar
 @onready var status_label: Label = $StatusLabel
 
@@ -20,6 +21,8 @@ const HP_COLOR := Color(0.8, 0.2, 0.2)
 
 
 func _ready() -> void:
+	IdleBob.start(art_rect)
+
 	_hp_bg_style = StyleBoxFlat.new()
 	_hp_bg_style.bg_color = Color(0.1, 0.1, 0.1, 0.9)
 	_hp_bg_style.corner_radius_top_left = 4

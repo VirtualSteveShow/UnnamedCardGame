@@ -59,12 +59,14 @@ const REAL_CREATURES := [
 	# data, not just flavor text.
 	{name = "House Cat", path = "res://assets/suburbs/house_cat_base.png",
 		battle_path = "res://assets/suburbs/battle_house_cat.png",
-		xp = 0.1, level = 1, max_health = 10, can_evolve = true, simple_abilities = true},
+		xp = 0.1, level = 1, max_health = 10, can_evolve = true, simple_abilities = true,
+		on_summon = {name = "Nuzzle", heal = 2}},
 	{name = "Watchcat", path = "res://assets/suburbs/house_cat_evolved.png",
 		xp = 1.0, level = 2, max_health = 10, can_evolve = true, simple_abilities = true},
 	{name = "Family Dog", path = "res://assets/suburbs/family_dog.png",
 		battle_path = "res://assets/suburbs/battle_family_dog.png",
-		xp = 0.0, level = 1, max_health = 12, can_evolve = false, simple_abilities = true},
+		xp = 0.0, level = 1, max_health = 12, can_evolve = false, simple_abilities = true,
+		on_summon = {name = "Warning Bite", damage = 2}},
 	{name = "Squirrel", path = "res://assets/suburbs/squirrel.png",
 		battle_path = "res://assets/suburbs/battle_squirrel.png",
 		xp = 0.0, level = 1, max_health = 5, can_evolve = false, simple_abilities = true},
@@ -92,6 +94,14 @@ static func get_all_cards() -> Array[CardData]:
 		card.can_evolve = entry.can_evolve
 		if entry.has("battle_path"):
 			card.battle_texture = load(entry.battle_path)
+		if entry.has("on_summon"):
+			var on_summon_data: Dictionary = entry.on_summon
+			var on_summon := CardAbility.new()
+			on_summon.ability_name = on_summon_data.get("name", "On Summon")
+			on_summon.damage = on_summon_data.get("damage", 0)
+			on_summon.heal = on_summon_data.get("heal", 0)
+			on_summon.energy_cost = 0
+			card.on_summon_ability = on_summon
 
 		var strike := CardAbility.new()
 		strike.ability_name = "Strike"
