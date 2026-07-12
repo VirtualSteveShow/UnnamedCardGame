@@ -835,12 +835,10 @@ func _refresh_all() -> void:
 	draw_pile_button.set_count(battle.player_deck.size())
 	discard_pile_button.set_count(battle.player_discard.size())
 
-	if battle.is_over:
-		hint_label.text = ""
-	elif not battle.is_player_turn:
+	if not battle.is_over and not battle.is_player_turn:
 		hint_label.text = "Enemy turn…"
 	else:
-		hint_label.text = "Tap a card to inspect it. Drag an arc onto an enemy to target, or drag a card up to play it"
+		hint_label.text = ""
 
 	for tile in _hand_tiles:
 		tile.set_disabled(not battle.can_play_card(tile.card))

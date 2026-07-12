@@ -45,6 +45,10 @@ func setup(data: CardData) -> void:
 	card_data = data
 	art_rect.texture = data.get_display_texture()
 	name_label.text = data.card_name
+	# Non-evolving creatures (most wild/enemy critters) never gain XP --
+	# permanently level 1 by design, not just "no path yet" -- so the bar
+	# would just always sit empty. See CardData.can_evolve.
+	xp_bar.visible = data.can_evolve
 	xp_bar.value = data.xp_progress * 100.0
 
 

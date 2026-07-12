@@ -191,6 +191,7 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_tooltip")
 
 [node name="TitleLabel" type="Label" parent="CardTooltip"]
 layout_mode = 1
+anchor_right = 1.0
 offset_left = 12.0
 offset_top = 8.0
 offset_right = -12.0
@@ -201,6 +202,8 @@ text = "Card Name"
 
 [node name="DescLabel" type="Label" parent="CardTooltip"]
 layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
 offset_left = 12.0
 offset_top = 40.0
 offset_right = -12.0

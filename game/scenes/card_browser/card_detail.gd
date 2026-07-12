@@ -49,6 +49,10 @@ func show_card(data: CardData) -> void:
 	art_rect.texture = data.get_display_texture()
 	name_label.text = data.card_name
 	hp_label.text = "%d HP" % data.max_health
+	# Non-evolving creatures never gain XP -- permanently level 1 by
+	# design, not just "no path yet" -- so the bar would just always sit
+	# empty. See CardData.can_evolve.
+	xp_bar.visible = data.can_evolve
 	xp_bar.value = data.xp_progress * 100.0
 
 	battle_sprite_box.visible = data.battle_texture != null
