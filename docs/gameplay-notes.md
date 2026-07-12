@@ -592,6 +592,50 @@ system to introduce it.
 
 Not built, not locked in -- flagging here so it doesn't get lost.
 
+## Bare-bones run map (built 2026-07-12)
+
+A first, deliberately minimal step toward the branching-path structure
+above -- just enough to playtest "fight, capture, fight again with a
+bigger deck" across more than one battle, not the real map yet:
+
+- **RunState** (`scripts/run_state.gd`, autoload singleton `Run`) holds
+  the current run's deck and node progress across scene changes. Title
+  screen's Battle button calls `Run.start_new_run()` (always fresh --
+  no save/resume concept yet) and opens the new map screen instead of
+  jumping straight into a battle.
+- The map is a **straight line of nodes**, not a branch -- each node is
+  just an enemy roster (a Dictionary, same lightweight convention
+  CardDatabase already uses). Clearing node N unlocks node N+1. Real
+  branching, events, shops, etc. are still the eventual target; this is
+  scaffolding to prove the persistence loop works before investing in
+  map visuals/choice.
+- `battle_v2.gd` now pulls its deck and enemy roster from `Run` when a
+  run is active, falling back to the original hardcoded test deck/enemy
+  constants otherwise -- so the scene still works when loaded directly
+  (headless tests, or future standalone-skirmish use).
+- Successfully capturing a creature now actually does something:
+  `BattleStateV2` emits `creature_captured`, which `battle_v2.gd` forwards
+  to `Run.add_captured_creature()`, adding it to the run's deck for every
+  battle after this one (not the current one).
+- Winning a battle that's part of a run clears the current node and
+  returns to the map instead of the title screen; losing (or winning a
+  battle started outside of a run) still returns to the title screen.
+
+Deliberate simplifications, called out so they don't get mistaken for
+final decisions: player HP fully resets at the start of every node
+(no cross-node attrition yet); item cards (heals, capture tools) aren't
+truly "consumed" from the run's permanent collection -- every node
+battle starts from a fresh copy of `Run.deck`, so a used-up Band-Aid is
+available again next fight rather than being spent for the rest of the
+run.
+
+Verified headlessly end-to-end: starting a run populates a starting
+deck, node 0 is unlocked and node 1 isn't, entering node 0 builds
+`battle_v2`'s enemy team and deck from `Run`'s data, capturing a Rabbit
+mid-battle adds it to `Run.deck`, and winning clears node 0 and unlocks
+node 1. All five scenes (title, options, card browser, battle_v2, map)
+still load and survive multiple frames with no errors.
+
 ## Open questions / not yet decided
 
 - How many starter creatures eventually, and how they're chosen (currently

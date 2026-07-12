@@ -1,8 +1,9 @@
 extends Control
-## App entry point. Bare-bones hub screen: three buttons launch straight
-## into Battle, the card browser, or a placeholder Options screen. Every
-## other screen's "Back" button returns here directly (hub-and-spoke
-## navigation) rather than to whichever screen launched it.
+## App entry point. Bare-bones hub screen: three buttons launch Battle
+## (starts a fresh run and opens the map -- see RunState), the card
+## browser, or a placeholder Options screen. Every other screen's "Back"
+## button returns here directly (hub-and-spoke navigation) rather than
+## to whichever screen launched it.
 
 const VERSION_LABEL_SIZE := Vector2(160.0, 44.0)
 const BASE_EDGE_PADDING := 24.0
@@ -49,8 +50,12 @@ func _on_viewport_resized() -> void:
 	version_bg.offset_top = version_label.offset_top
 
 
+## Battle always begins a fresh run (see RunState) -- there's no
+## save/resume concept yet, so this discards any previous run's progress
+## and starts back at the map's first node.
 func _on_battle_pressed() -> void:
-	get_tree().change_scene_to_file("res://scenes/battle_v2/battle_v2.tscn")
+	Run.start_new_run()
+	get_tree().change_scene_to_file("res://scenes/map/map_screen.tscn")
 
 
 func _on_view_cards_pressed() -> void:

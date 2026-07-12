@@ -41,6 +41,11 @@ signal ability_played(card: AbilityCardData, target: BattleCombatant)
 signal creature_entered_field(combatant: BattleCombatant)
 ## Emitted once a fielded creature's HP reaches 0.
 signal creature_left_field(combatant: BattleCombatant)
+## Emitted when a capture item successfully takes an enemy creature --
+## the UI is expected to add it to the player's persistent collection
+## (see RunState.add_captured_creature); BattleStateV2 itself has no
+## concept of a run, only a single battle.
+signal creature_captured(card: CardData)
 
 var player_deck: Array[BaseCardData] = []
 var player_hand: Array[BaseCardData] = []
@@ -244,8 +249,10 @@ func play_item_card(card: ItemCardData, target: BattleCombatant) -> void:
 func _attempt_capture(card: ItemCardData, target: BattleCombatant) -> void:
 	var hp_fraction: float = float(target.current_hp) / float(target.data.max_health)
 	if hp_fraction <= card.capture_hp_threshold and target.is_alive():
+		var captured_data := target.data
 		target.current_hp = 0
-		log_message.emit("Captured %s with %s!" % [target.data.card_name, card.card_name])
+		log_message.emit("Captured %s with %s!" % [captured_data.card_name, card.card_name])
+		creature_captured.emit(captured_data)
 		_check_battle_over()
 	else:
 		log_message.emit("%s isn't weak enough yet -- %s failed." % [target.data.card_name, card.card_name])

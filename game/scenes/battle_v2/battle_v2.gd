@@ -129,19 +129,10 @@ var _focused_tile: Control = null # tap-focused card, if any
 
 
 func _ready() -> void:
-	var deck_cards: Array[BaseCardData] = []
-	for creature_name in PLAYER_DECK_CREATURES:
-		deck_cards.append(CardDatabase.get_real_creature_by_name(creature_name))
-	for item_name in PLAYER_DECK_ITEMS:
-		for item in ItemDatabase.get_item_cards():
-			if item.card_name == item_name:
-				deck_cards.append(item)
-				break
+	var deck_cards: Array[BaseCardData] = _build_deck_cards()
 	deck_cards.append_array(_build_standalone_ability_cards())
 
-	var enemy_data: Array[CardData] = []
-	for creature_name in ENEMY_TEAM_NAMES:
-		enemy_data.append(CardDatabase.get_real_creature_by_name(creature_name))
+	var enemy_data: Array[CardData] = _build_enemy_data()
 
 	battle = BattleStateV2.new(deck_cards, enemy_data)
 	battle.log_message.connect(_on_log_message)
@@ -150,6 +141,7 @@ func _ready() -> void:
 	battle.ability_played.connect(_on_ability_played)
 	battle.creature_entered_field.connect(_on_creature_entered_field)
 	battle.creature_left_field.connect(_on_creature_left_field)
+	battle.creature_captured.connect(_on_creature_captured)
 
 	for combatant in battle.enemy_team:
 		var tile := EnemyTileV2Scene.instantiate()
@@ -160,7 +152,7 @@ func _ready() -> void:
 
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
 	return_button.pressed.connect(_return_to_browser)
-	result_return_button.pressed.connect(_return_to_browser)
+	result_return_button.pressed.connect(_on_result_return_pressed)
 	draw_pile_button.tapped.connect(_on_deck_pile_tapped)
 	discard_pile_button.tapped.connect(_on_discard_pile_tapped)
 	pile_view_close_button.pressed.connect(func() -> void: pile_view_overlay.visible = false)
@@ -179,6 +171,46 @@ func _ready() -> void:
 ## Constructed directly here rather than via CardDatabase since they
 ## aren't creature abilities -- there's no creature card that generates
 ## them.
+## Uses the active run's deck when this scene was reached via the map
+## screen (Run.start_new_run() sets Run.active); falls back to the
+## original hardcoded test roster otherwise, so the scene still works
+## when loaded directly -- e.g. by a headless test script that never
+## touches RunState.
+func _build_deck_cards() -> Array[BaseCardData]:
+	if Run.active:
+		return Run.deck.duplicate()
+
+	var deck_cards: Array[BaseCardData] = []
+	for creature_name in PLAYER_DECK_CREATURES:
+		deck_cards.append(CardDatabase.get_real_creature_by_name(creature_name))
+	for item_name in PLAYER_DECK_ITEMS:
+		for item in ItemDatabase.get_item_cards():
+			if item.card_name == item_name:
+				deck_cards.append(item)
+				break
+	return deck_cards
+
+
+## Same fallback pattern as _build_deck_cards(), keyed off the run's
+## current map node instead of the hardcoded ENEMY_TEAM_NAMES.
+func _build_enemy_data() -> Array[CardData]:
+	var names: Array = ENEMY_TEAM_NAMES
+	if Run.active:
+		var run_names := Run.current_node_enemy_names()
+		if not run_names.is_empty():
+			names = run_names
+
+	var enemy_data: Array[CardData] = []
+	for creature_name in names:
+		enemy_data.append(CardDatabase.get_real_creature_by_name(creature_name))
+	return enemy_data
+
+
+func _on_creature_captured(card: CardData) -> void:
+	if Run.active:
+		Run.add_captured_creature(card)
+
+
 func _build_standalone_ability_cards() -> Array[BaseCardData]:
 	var texture: Texture2D = load(PLAYER_ABILITY_SPRITE_PATH)
 	var cards: Array[BaseCardData] = []
@@ -856,3 +888,17 @@ func _refresh_all() -> void:
 
 func _return_to_browser() -> void:
 	get_tree().change_scene_to_file("res://scenes/title/title_screen.tscn")
+
+
+## The result overlay's return button, unlike the mid-battle "✕ Back"
+## button, doesn't always go to the title screen: winning a battle that's
+## part of an active run clears the current node and sends the player
+## back to the map to pick the next one, so the run's deck/progress
+## actually carries forward. Losing (or winning outside of a run, e.g. a
+## standalone test battle) still just returns to the title screen.
+func _on_result_return_pressed() -> void:
+	if Run.active and battle.player_won:
+		Run.clear_current_node()
+		get_tree().change_scene_to_file("res://scenes/map/map_screen.tscn")
+	else:
+		get_tree().change_scene_to_file("res://scenes/title/title_screen.tscn")
