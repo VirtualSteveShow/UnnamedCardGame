@@ -11,6 +11,7 @@ extends Control
 @onready var art_rect: TextureRect = $Art
 @onready var name_label: Label = $NameLabel
 @onready var hp_bar: ProgressBar = $HpBar
+@onready var hp_label: Label = $HpBar/HpLabel
 
 var combatant: BattleCombatant
 
@@ -55,5 +56,6 @@ func setup(c: BattleCombatant) -> void:
 func refresh() -> void:
 	hp_bar.max_value = combatant.data.max_health
 	hp_bar.value = combatant.current_hp
+	hp_label.text = "%d/%d" % [maxi(combatant.current_hp, 0), combatant.data.max_health]
 	var alive := combatant.is_alive()
 	modulate = Color.WHITE if alive else Color(0.35, 0.35, 0.35)

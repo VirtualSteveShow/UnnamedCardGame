@@ -41,24 +41,24 @@ grow_vertical = 2
 
 [node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
 layout_mode = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 36
 
 [node name="BattleButton" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(320, 72)
+custom_minimum_size = Vector2(520, 120)
 layout_mode = 2
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 40
 text = "⚔ Battle"
 
 [node name="ViewCardsButton" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(320, 72)
+custom_minimum_size = Vector2(520, 120)
 layout_mode = 2
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 40
 text = "🃏 View Cards"
 
 [node name="OptionsButton" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(320, 72)
+custom_minimum_size = Vector2(520, 120)
 layout_mode = 2
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 40
 text = "⚙ Options"
 
 [node name="VersionBg" type="ColorRect" parent="."]

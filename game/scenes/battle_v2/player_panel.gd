@@ -12,6 +12,7 @@ extends Panel
 
 @onready var art_rect: TextureRect = $Art
 @onready var hp_bar: ProgressBar = $HpBar
+@onready var hp_label: Label = $HpBar/HpLabel
 @onready var status_label: Label = $StatusLabel
 
 var _hp_bg_style: StyleBoxFlat
@@ -43,8 +44,6 @@ func _ready() -> void:
 func refresh(hp: int, max_hp: int, block: int) -> void:
 	hp_bar.max_value = max_hp
 	hp_bar.value = hp
+	hp_label.text = "%d/%d" % [hp, max_hp]
 
-	var text := "%d/%d HP" % [hp, max_hp]
-	if block > 0:
-		text += "  ·  Block %d" % block
-	status_label.text = text
+	status_label.text = "Block %d" % block if block > 0 else ""

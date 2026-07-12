@@ -65,8 +65,8 @@ const DRAG_THRESHOLD := 14.0
 const DRAG_LIFT_SCALE := 1.35
 
 @onready var player_panel := $PlayerPanel
-@onready var field_row: VBoxContainer = $PlayerFieldRow
-@onready var enemy_row: VBoxContainer = $EnemyRow
+@onready var field_row: GridContainer = $PlayerFieldRow
+@onready var enemy_row: GridContainer = $EnemyRow
 @onready var hand_area: Control = $HandArea
 @onready var energy_orb := $EnergyOrb
 @onready var draw_pile_button := $DrawPileButton
@@ -635,54 +635,42 @@ func _lock_tile_size(tile: Control) -> void:
 	tile.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
 
-func _fit_tile_size(available: Vector2, count: int, separation: float, vertical_stack: bool = false) -> Vector2:
+## Both creature grids are a fixed 2x2 no matter how many creatures
+## actually occupy them -- tile size is always derived from splitting the
+## grid's full area into 4 equal cells, never from how many tiles are
+## currently in play. Sizing by occupant count was the original bug here
+## (a lone creature would blow up to fill the whole row); a slot's size
+## shouldn't change just because its neighbors died.
+const GRID_ROWS := 2
+const GRID_COLS := 2
+
+func _fit_grid_tile_size(available: Vector2, h_separation: float, v_separation: float) -> Vector2:
+	var cell_width: float = (available.x - h_separation * (GRID_COLS - 1)) / GRID_COLS
+	var cell_height: float = (available.y - v_separation * (GRID_ROWS - 1)) / GRID_ROWS
+
+	var width_from_height := cell_height * BaseCardData.ASPECT_RATIO
 	var tile_width: float
 	var tile_height: float
-
-	if vertical_stack:
-		var height_from_count_limit: float = (available.y - separation * (count - 1)) / count
-		var width_from_count_limit: float = height_from_count_limit * BaseCardData.ASPECT_RATIO
-
-		var width_from_cross_limit: float = available.x
-		var height_from_cross_limit: float = width_from_cross_limit / BaseCardData.ASPECT_RATIO
-
-		if width_from_cross_limit <= width_from_count_limit:
-			tile_width = width_from_cross_limit
-			tile_height = height_from_cross_limit
-		else:
-			tile_width = width_from_count_limit
-			tile_height = height_from_count_limit
+	if width_from_height <= cell_width:
+		tile_width = width_from_height
+		tile_height = cell_height
 	else:
-		var height_from_cross_limit: float = available.y
-		var width_from_cross_limit: float = height_from_cross_limit * BaseCardData.ASPECT_RATIO
-
-		var width_from_count_limit: float = (available.x - separation * (count - 1)) / count
-		var height_from_count_limit: float = width_from_count_limit / BaseCardData.ASPECT_RATIO
-
-		if height_from_cross_limit <= height_from_count_limit:
-			tile_height = height_from_cross_limit
-			tile_width = width_from_cross_limit
-		else:
-			tile_width = width_from_count_limit
-			tile_height = height_from_count_limit
+		tile_width = cell_width
+		tile_height = cell_width / BaseCardData.ASPECT_RATIO
 
 	return Vector2(maxf(tile_width, 40.0), maxf(tile_height, 60.0))
 
 
 func _resize_enemy_row() -> void:
-	if _enemy_tiles.is_empty():
-		return
-	var tile_size := _fit_tile_size(
-		enemy_row.size, _enemy_tiles.size(), enemy_row.get_theme_constant("separation"), true)
+	var tile_size := _fit_grid_tile_size(
+		enemy_row.size, enemy_row.get_theme_constant("h_separation"), enemy_row.get_theme_constant("v_separation"))
 	for tile in _enemy_tiles:
 		tile.custom_minimum_size = tile_size
 
 
 func _resize_field_row() -> void:
-	if _field_tiles.is_empty():
-		return
-	var tile_size := _fit_tile_size(
-		field_row.size, _field_tiles.size(), field_row.get_theme_constant("separation"), true)
+	var tile_size := _fit_grid_tile_size(
+		field_row.size, field_row.get_theme_constant("h_separation"), field_row.get_theme_constant("v_separation"))
 	for tile in _field_tiles:
 		tile.custom_minimum_size = tile_size
 
