@@ -45,6 +45,13 @@ signal creature_left_field(combatant: BattleCombatant)
 var player_deck: Array[BaseCardData] = []
 var player_hand: Array[BaseCardData] = []
 var player_discard: Array[BaseCardData] = []
+## Cards removed from the game entirely -- never reshuffled back into
+## the draw pile, unlike discard. A defeated creature's still-live
+## ability cards (wherever they are: hand or discard) end up here, since
+## their stats no longer mean anything once the creature that granted
+## them is gone. Nothing currently returns a card FROM exile; that's a
+## likely future mechanic (see docs/gameplay-notes.md), not built yet.
+var player_exile: Array[BaseCardData] = []
 
 var player_hp: int = PLAYER_MAX_HP
 var player_max_hp: int = PLAYER_MAX_HP
@@ -100,13 +107,16 @@ func can_play_card(card: BaseCardData) -> bool:
 ## living enemy (see _resolve_on_summon) instead of making the player aim
 ## the creature card itself, so playing a creature always uses the same
 ## "drag it up" gesture regardless of what it does on summon.
+##
+## The card itself does NOT go to discard here -- it's alive and fighting
+## on the field (see field_creatures), not a used-up card. It only lands
+## in discard once actually defeated (see _handle_field_creature_defeated).
 func play_creature_card(card: CardData) -> void:
 	if not can_play_card(card):
 		return
 
 	energy -= card.energy_cost
 	player_hand.erase(card)
-	player_discard.append(card)
 
 	var combatant := BattleCombatant.new(card)
 	field_creatures.append(combatant)
@@ -280,36 +290,63 @@ func _run_enemy_turn() -> void:
 	state_changed.emit()
 
 
-## Picks who an enemy attacks: the player, or one of the player's living
-## field creatures, chosen with equal weight across whichever of those
-## are actually available. Returns null to mean "the player".
+## Percentage-point drop in the player's own chance of being attacked per
+## living player creature in play (1 creature = 75%, 2 = 50%, 3 = 25%,
+## 4 = 0% -- a full 2x2 field guarantees the player is never attacked
+## directly).
+const PLAYER_TARGET_CHANCE_STEP := 25
+
+## Picks who an enemy attacks. If any living field creature has Taunt
+## (CardData.taunt), enemies are forced to attack only taunting
+## creatures -- the player and any non-taunting creature are untouchable
+## while one's alive. Otherwise the player has a chance of being
+## attacked directly based on how many creatures are in play (see
+## PLAYER_TARGET_CHANCE_STEP); the rest of the time, one of those
+## creatures is picked with equal weight. Returns null to mean "the
+## player".
 func _pick_enemy_target() -> BattleCombatant:
-	var pool: Array = [null]
+	var living: Array[BattleCombatant] = []
 	for creature in field_creatures:
 		if creature.is_alive():
-			pool.append(creature)
-	return pool[randi() % pool.size()]
+			living.append(creature)
+
+	var taunting: Array = living.filter(func(c): return c.data.taunt)
+	if not taunting.is_empty():
+		return taunting[randi() % taunting.size()]
+
+	if living.is_empty():
+		return null
+
+	var player_chance: int = clampi(100 - PLAYER_TARGET_CHANCE_STEP * living.size(), 0, 100)
+	if randi() % 100 < player_chance:
+		return null
+	return living[randi() % living.size()]
 
 
 ## Removes a field creature whose HP just hit 0: drops it from the field,
-## strips any of its ability cards out of both hand AND discard (their
+## exiles any of its ability cards out of both hand AND discard (their
 ## stats no longer mean anything once the creature that granted them is
 ## gone -- left in discard, a stale one could otherwise get reshuffled
-## back into the draw pile and resurface in a later hand), and fires
-## creature_left_field.
+## back into the draw pile and resurface in a later hand; exile removes
+## them from the game entirely rather than just discarding them again),
+## sends the creature's own card to discard now that it's actually dead
+## (see play_creature_card for why it wasn't discarded on play), and
+## fires creature_left_field.
 func _handle_field_creature_defeated(combatant: BattleCombatant) -> void:
 	field_creatures.erase(combatant)
-	_strip_ability_cards_for(combatant.data, player_hand)
-	_strip_ability_cards_for(combatant.data, player_discard)
+	_exile_ability_cards_for(combatant.data, player_hand)
+	_exile_ability_cards_for(combatant.data, player_discard)
+	player_discard.append(combatant.data)
 	log_message.emit("%s was defeated!" % combatant.data.card_name)
 	creature_left_field.emit(combatant)
 
 
-func _strip_ability_cards_for(source: CardData, pile: Array[BaseCardData]) -> void:
+func _exile_ability_cards_for(source: CardData, pile: Array[BaseCardData]) -> void:
 	for i in range(pile.size() - 1, -1, -1):
 		var c: BaseCardData = pile[i]
 		if c is AbilityCardData and c.source_creature == source:
 			pile.remove_at(i)
+			player_exile.append(c)
 
 
 ## Applies incoming damage after subtracting the player's own block, and

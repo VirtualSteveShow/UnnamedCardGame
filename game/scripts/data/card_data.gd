@@ -31,6 +31,12 @@ extends BaseCardData
 ## hand cards instead. Null means no on-summon effect.
 @export var on_summon_ability: CardAbility = null
 
+## Tankier creatures only -- while at least one taunting player creature
+## is alive and on the field, enemies are forced to attack only taunting
+## creatures (see BattleStateV2._pick_enemy_target), guaranteeing the
+## player a 0% chance of being attacked directly.
+@export var taunt: bool = false
+
 ## Side-view sprite used on the battlefield when this creature is
 ## summoned into combat -- a full-body profile pose, distinct from
 ## art_texture's card-portrait framing. Null means no battle sprite yet

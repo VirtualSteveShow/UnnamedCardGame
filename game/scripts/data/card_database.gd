@@ -66,7 +66,7 @@ const REAL_CREATURES := [
 	{name = "Family Dog", path = "res://assets/suburbs/family_dog.png",
 		battle_path = "res://assets/suburbs/battle_family_dog.png",
 		xp = 0.0, level = 1, max_health = 12, can_evolve = false, simple_abilities = true,
-		on_summon = {name = "Warning Bite", damage = 2}},
+		on_summon = {name = "Warning Bite", damage = 2}, taunt = true},
 	{name = "Squirrel", path = "res://assets/suburbs/squirrel.png",
 		battle_path = "res://assets/suburbs/battle_squirrel.png",
 		xp = 0.0, level = 1, max_health = 5, can_evolve = false, simple_abilities = true},
@@ -92,6 +92,7 @@ static func get_all_cards() -> Array[CardData]:
 		card.level = entry.level
 		card.max_health = entry.max_health
 		card.can_evolve = entry.can_evolve
+		card.taunt = entry.get("taunt", false)
 		if entry.has("battle_path"):
 			card.battle_texture = load(entry.battle_path)
 		if entry.has("on_summon"):

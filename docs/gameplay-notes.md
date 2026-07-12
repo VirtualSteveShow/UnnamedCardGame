@@ -693,6 +693,65 @@ Every scene (title, card browser, options, Deck Battle) currently uses a
 flat solid-color background. Real background art is wanted eventually for
 all of them -- tracked here as a to-do, not being built yet.
 
+## Battle bugfix + feature round (2026-07-12, later)
+
+A batch of issues from on-device testing of the previous round, plus two
+more gameplay systems, all now built:
+
+- Player HP bar/panel were stretched far too wide; HP bars across the
+  board (player, enemy, field creature) now show a centered white
+  "current/max" label instead of relying on a separate text line.
+- The discard/draw pile view overlay could render behind the hand
+  because hand tiles carry a small per-position z_index for their own
+  fan layout -- since z_index beats tree order when nonzero, gave the
+  tooltip/pile-view/result overlays explicit z_index values above
+  anything the hand uses.
+- Title screen buttons enlarged.
+- Rebuilt the battle layout: player fixed in a column on the far left,
+  player creatures in a 2x2 grid to its right, enemies in their own 2x2
+  grid (room left for a possible far-right human-enemy slot later).
+  Tile size is now always a fixed 2x2 division of the grid's area, never
+  based on how many creatures are actually in it -- fixes tiles visibly
+  growing as the opposing team thinned out.
+- Reworked hand-card interaction: a tap now toggles a "focused" state
+  (lifted, enlarged, drawn above neighbors, tooltip visible) instead of
+  just snapping back. Damaging/capture cards no longer drag the whole
+  card onto a target -- the card stays in hand while the player drags a
+  curved arc (gold while aiming, green over a valid target) out to the
+  enemy; releasing over it plays the card. Non-targeted cards (creatures,
+  block abilities, healing items) still lift-and-drag-up. On-summon
+  damage now auto-targets a random living enemy instead of requiring the
+  player to aim the creature card itself, so Family Dog (and any future
+  on-summon-damage creature) plays the same way every other creature
+  does.
+- **Percentage-based enemy targeting.** Enemies no longer pick a target
+  with flat equal weight -- the player's own chance of being attacked
+  drops 25 percentage points per living player creature in play (1
+  creature = 75%, 2 = 50%, 3 = 25%, a full 2x2 field = 0%), with the rest
+  split evenly across the creatures. **Taunt**: a creature can have
+  `CardData.taunt = true` (wired onto Family Dog, the tankiest creature
+  in the current test roster) -- while any taunting creature is alive,
+  enemies are forced to attack only taunting creatures, guaranteeing the
+  player (and any non-taunting creature) a 0% chance of being hit.
+- **Exile pile.** A defeated creature's still-live ability cards (in hand
+  OR discard) move to a new `player_exile` pile instead of vanishing or
+  sitting in discard -- exile is never reshuffled back into the draw
+  pile, unlike discard. The creature's own card no longer goes to
+  discard the moment it's played (it's alive and fighting, not used up);
+  it only lands in discard once actually defeated. Nothing returns a
+  card FROM exile yet -- a discard-recovery/reshuffle mechanic is a
+  likely future addition, not built. The exile pile also has no UI view
+  yet (the discard pile has one via the corner pile button) -- worth
+  adding once there's a reason to actually look at what's been exiled.
+
+All verified headlessly: card-data checks, a full battle simulation
+(heal/damage on-summon, staggered unlock, arc-drag damage matching the
+dragged card's exact stats, lift-drag still playing creatures, taunt
+forcing 200/200 picks onto the taunting creature, percentage targeting
+landing in the expected statistical range across 500 trials, exile pile
+membership and discard timing), and all four scenes loading/surviving
+multiple frames with no errors.
+
 ## TODO: basic animation pass
 
 Idle animations (simple bob/squash on creature and player art while
