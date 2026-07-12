@@ -25,6 +25,7 @@ extends Control
 
 const CombatantTileScene := preload("res://scenes/battle/battle_combatant_tile.tscn")
 const HandTileScene := preload("res://scenes/battle/battle_hand_card_tile.tscn")
+const FieldMonsterTileScene := preload("res://scenes/battle_v2/field_monster_tile.tscn")
 
 const DRAW_ANIM_DURATION := 0.35
 const DRAW_ANIM_STAGGER := 0.1
@@ -50,7 +51,14 @@ const MAX_LOG_LINES := 5
 const ABILITY_POP_DURATION := 0.25
 const ABILITY_POP_HOLD := 0.25
 
+## How long a creature takes to fade/scale onto the field when played, and
+## to slide/fade off when it flees -- see _on_creature_entered_field() /
+## _on_creature_left_field().
+const FIELD_ENTER_DURATION := 0.25
+const FIELD_FLEE_DURATION := 0.3
+
 @onready var player_panel := $PlayerPanel
+@onready var field_row: VBoxContainer = $PlayerFieldRow
 @onready var enemy_row: VBoxContainer = $EnemyRow
 @onready var hand_row: HBoxContainer = $HandRow
 @onready var hand_focus_catcher: Button = $HandFocusCatcher
@@ -78,6 +86,7 @@ var _log_lines: Array[String] = []
 
 var _enemy_tiles: Array = []
 var _hand_tiles: Array = []
+var _field_tiles: Array = []
 
 var _pending_ability_card: AbilityCardData = null
 var _pending_item: ItemCardData = null
@@ -105,6 +114,8 @@ func _ready() -> void:
 	battle.state_changed.connect(_on_state_changed)
 	battle.cards_drawn.connect(_on_cards_drawn)
 	battle.ability_played.connect(_on_ability_played)
+	battle.creature_entered_field.connect(_on_creature_entered_field)
+	battle.creature_left_field.connect(_on_creature_left_field)
 
 	for combatant in battle.enemy_team:
 		var tile := CombatantTileScene.instantiate()
@@ -193,6 +204,11 @@ func _on_cards_drawn(cards: Array) -> void:
 ## doesn't block or delay that resolution.
 func _on_ability_played(card: AbilityCardData, target: BattleCombatant) -> void:
 	var start_pos: Vector2 = player_panel.global_position + player_panel.size / 2.0
+	for tile in _field_tiles:
+		if tile.source_creature == card.source_creature:
+			start_pos = tile.global_position + tile.size / 2.0
+			break
+
 	var end_pos: Vector2 = start_pos
 	if target != null:
 		for tile in _enemy_tiles:
@@ -222,6 +238,57 @@ func _on_ability_played(card: AbilityCardData, target: BattleCombatant) -> void:
 	tween.tween_interval(ABILITY_POP_HOLD)
 	tween.tween_property(sprite, "modulate:a", 0.0, 0.2)
 	tween.tween_callback(sprite.queue_free)
+
+
+## Adds a field tile for a newly played creature and fades it in --
+## BattleStateV2.field_monsters is already updated by the time this
+## fires, this is purely the visual side.
+func _on_creature_entered_field(card: CardData) -> void:
+	var tile := FieldMonsterTileScene.instantiate()
+	field_row.add_child(tile)
+	_lock_tile_size(tile)
+	tile.setup(card)
+	_field_tiles.append(tile)
+
+	tile.modulate.a = 0.0
+	var tween := create_tween()
+	tween.tween_property(tile, "modulate:a", 1.0, FIELD_ENTER_DURATION)
+
+	_refresh_all()
+
+
+## Removes the field tile for a creature whose ability cards are all gone
+## from hand (played or discarded) -- fades and slides it out ("flees")
+## rather than vanishing instantly. Reparents into animation_layer (a
+## plain Control, not a container) before animating: the tile is dropped
+## from _field_tiles first, so the very next _refresh_all() would resize
+## the remaining field tiles and re-sort the container, which would fight
+## a position/opacity tween running on a tile still parented inside it.
+func _on_creature_left_field(card: CardData) -> void:
+	var tile_to_remove = null
+	for tile in _field_tiles:
+		if tile.source_creature == card:
+			tile_to_remove = tile
+			break
+	if tile_to_remove == null:
+		return
+
+	_field_tiles.erase(tile_to_remove)
+
+	var global_pos: Vector2 = tile_to_remove.global_position
+	var tile_size: Vector2 = tile_to_remove.size
+	tile_to_remove.get_parent().remove_child(tile_to_remove)
+	animation_layer.add_child(tile_to_remove)
+	tile_to_remove.global_position = global_pos
+	tile_to_remove.size = tile_size
+
+	_refresh_all()
+
+	var tween := create_tween()
+	tween.tween_property(tile_to_remove, "modulate:a", 0.0, FIELD_FLEE_DURATION)
+	tween.parallel().tween_property(tile_to_remove, "global_position:x", global_pos.x - 60, FIELD_FLEE_DURATION) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	tween.tween_callback(tile_to_remove.queue_free)
 
 
 func _on_deck_pile_tapped() -> void:
@@ -408,6 +475,15 @@ func _resize_enemy_row() -> void:
 		tile.custom_minimum_size = tile_size
 
 
+func _resize_field_row() -> void:
+	if _field_tiles.is_empty():
+		return
+	var tile_size := _fit_tile_size(
+		field_row.size, _field_tiles.size(), field_row.get_theme_constant("separation"), true)
+	for tile in _field_tiles:
+		tile.custom_minimum_size = tile_size
+
+
 func _small_hand_tile_size() -> Vector2:
 	var h := get_viewport_rect().size.y * HAND_SMALL_HEIGHT_FRACTION
 	return Vector2(h * BaseCardData.ASPECT_RATIO, h)
@@ -415,6 +491,7 @@ func _small_hand_tile_size() -> Vector2:
 
 func _refresh_all() -> void:
 	_resize_enemy_row()
+	_resize_field_row()
 
 	var pile_size := _small_hand_tile_size()
 	if _hand_focused:

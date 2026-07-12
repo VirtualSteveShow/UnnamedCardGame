@@ -449,6 +449,31 @@ the turn correctly damages the player's HP pool instead of a creature.
   combat's repeat-use-across-turns economy doesn't have the same problem
   and wasn't touched.
 
+**Temporary field presence (built 2026-07-12)**: a played creature now
+gets a non-HP visual presence on the field (`field_monsters` on
+`BattleStateV2`, a new `PlayerFieldRow` column below `PlayerPanel` in the
+UI) instead of just flashing into existence for each ability play and
+otherwise being invisible. A creature stays on the field for as long as
+at least one of the ability cards it released is still somewhere in
+`player_hand` -- checked by scanning hand contents
+(`_prune_fled_monsters()`), not a manually-decremented counter, so it
+correctly covers both ways a card can leave hand: being played, or being
+discarded unplayed at end of turn. The moment none are left, the creature
+"flees" -- `creature_left_field` fires and the UI fades/slides the tile
+out. `_on_ability_played`'s "pops out and attacks" animation now starts
+from the creature's field tile when it has one, instead of always from
+the player panel, so the flourish reads as "the fielded monster attacks"
+rather than "a card generically pops out." New scene:
+`scenes/battle_v2/field_monster_tile.tscn`/`.gd` -- deliberately simpler
+than `battle_combatant_tile` (no HP bar, no tap interaction, since field
+monsters have neither) rather than repurposing that tile.
+
+Verified computationally: playing a creature adds it to `field_monsters`
+and fires `creature_entered_field`; for a 2-ability creature (Raccoon),
+playing only one of its two ability cards leaves it on the field, and
+playing the second causes it to flee; a 1-ability creature (House Cat)
+flees immediately after its single ability is played.
+
 ## Run structure (discussed, not yet decided/built)
 
 Two options on the table for how a run is actually navigated:

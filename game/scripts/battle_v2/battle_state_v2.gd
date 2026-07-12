@@ -8,8 +8,8 @@ extends RefCounted
 ## playable exactly as before.
 ##
 ## The core difference from BattleState: captured creatures don't have HP
-## and never get summoned onto a persistent battlefield. Playing a
-## creature card discards it immediately and generates one
+## and never get permanently summoned onto a persistent battlefield.
+## Playing a creature card discards it immediately and generates one
 ## AbilityCardData per ability it has directly into hand (bypassing the
 ## draw pile -- these are freshly created, not drawn). Playing one of
 ## those ability cards resolves its effect (damage to a chosen enemy, or
@@ -18,6 +18,12 @@ extends RefCounted
 ## ability" step anymore since abilities ARE hand cards now -- every
 ## playable card just gets tapped directly, optionally followed by a
 ## target tap for damaging effects.
+##
+## The played creature DOES get a temporary, non-HP field presence
+## though (field_monsters) -- it "stays out" for as long as at least one
+## of its ability cards is still in hand, purely as visual feedback, and
+## flees (creature_left_field) the moment none are left, whether they
+## were played or discarded unplayed at end of turn.
 ##
 ## The player has a personal HP/block pool instead of a battlefield of
 ## creatures; enemies attack that pool directly. Enemies themselves are
@@ -39,6 +45,14 @@ signal cards_drawn(cards: Array[BaseCardData])
 ## the UI can play a "the monster pops out and attacks" animation using
 ## the source creature's battle sprite before the damage/log updates land.
 signal ability_played(card: AbilityCardData, target: BattleCombatant)
+## Emitted right after a played creature takes up a spot on the field
+## (see field_monsters).
+signal creature_entered_field(card: CardData)
+## Emitted once none of a fielded creature's ability cards are left in
+## hand anymore -- whether because they were all played, or because the
+## hand discarded at end of turn with some still unplayed. The creature
+## "flees" at that point; see field_monsters for the rule.
+signal creature_left_field(card: CardData)
 
 var player_deck: Array[BaseCardData] = []
 var player_hand: Array[BaseCardData] = []
@@ -47,6 +61,13 @@ var player_discard: Array[BaseCardData] = []
 var player_hp: int = PLAYER_MAX_HP
 var player_max_hp: int = PLAYER_MAX_HP
 var player_block: int = 0
+
+## Creatures currently "on the field" -- purely presentational, no HP,
+## not targetable. A played creature stays here for as long as at least
+## one of the ability cards it released is still somewhere in
+## player_hand; the moment none are left (played or discarded), it's
+## pruned and creature_left_field fires. See _prune_fled_monsters().
+var field_monsters: Array[CardData] = []
 
 var enemy_team: Array[BattleCombatant] = []
 var energy: int = ENERGY_PER_TURN
@@ -99,6 +120,9 @@ func play_creature_card(card: CardData) -> void:
 	player_hand.erase(card)
 	player_discard.append(card)
 
+	field_monsters.append(card)
+	creature_entered_field.emit(card)
+
 	var generated: Array[BaseCardData] = []
 	for i in card.abilities.size():
 		var ability: CardAbility = card.abilities[i]
@@ -111,9 +135,10 @@ func play_creature_card(card: CardData) -> void:
 		player_hand.append(ability_card)
 		generated.append(ability_card)
 
-	log_message.emit("%s's moves enter your hand!" % card.card_name)
+	log_message.emit("%s enters the field, its moves enter your hand!" % card.card_name)
 	if not generated.is_empty():
 		cards_drawn.emit(generated)
+	_prune_fled_monsters() # handles the (currently impossible) 0-ability edge case
 	state_changed.emit()
 
 
@@ -143,6 +168,7 @@ func play_ability_card(card: AbilityCardData, target: BattleCombatant) -> void:
 			card.source_creature.card_name, ability.ability_name, ability.block])
 
 	_check_battle_over()
+	_prune_fled_monsters()
 	state_changed.emit()
 
 
@@ -186,6 +212,7 @@ func end_player_turn() -> void:
 		return
 	is_player_turn = false
 	_discard_hand()
+	_prune_fled_monsters()
 	state_changed.emit()
 	_run_enemy_turn()
 
@@ -257,6 +284,23 @@ func _draw_hand() -> void:
 		newly_drawn.append(card)
 	if not newly_drawn.is_empty():
 		cards_drawn.emit(newly_drawn)
+
+
+## Removes any field monster with no ability cards left anywhere in
+## player_hand and fires creature_left_field for each -- called after
+## anything that can remove a card from hand (playing an ability card,
+## the turn-end discard).
+func _prune_fled_monsters() -> void:
+	for i in range(field_monsters.size() - 1, -1, -1):
+		var creature: CardData = field_monsters[i]
+		var still_has_card := false
+		for c in player_hand:
+			if c is AbilityCardData and c.source_creature == creature:
+				still_has_card = true
+				break
+		if not still_has_card:
+			field_monsters.remove_at(i)
+			creature_left_field.emit(creature)
 
 
 func _check_battle_over() -> void:
