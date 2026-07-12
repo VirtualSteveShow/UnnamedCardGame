@@ -609,3 +609,73 @@ Not built, not locked in -- flagging here so it doesn't get lost.
   abrupt with a multi-creature team all acting in the same instant.
 - No summoning sickness -- a creature can act the same turn it's summoned,
   if energy allows. Simple by design for now, worth revisiting for balance.
+
+## Title screen + old battle mode removed (2026-07-12)
+
+The original "Battle Test" prototype (Pokémon-style persistent battlefield,
+`BattleState`/`battle.gd`/`scenes/battle/`) has been deleted entirely --
+Deck Battle (the hand-based, Slay-the-Spire-style system) is now the one
+and only combat system, so there's no more need to keep them running in
+parallel. `BattleCombatant` (shared enemy-wrapper class) was relocated
+from `scripts/battle/` to `scripts/battle_combatant.gd` since its old
+parent folder was battle-system-specific and is now gone; everything else
+in the old folder was deleted outright.
+
+Added a bare-bones title screen (`scenes/title/title_screen.tscn`) as the
+new app entry point (`project.godot`'s `run/main_scene`), with three
+buttons: **Battle** (straight into `battle_v2.tscn`), **View Cards**
+(`card_browser.tscn`), and **Options** (a placeholder screen, no real
+settings yet). Navigation is hub-and-spoke: every screen's Back button
+returns directly to the title screen, not to whichever screen launched
+it -- so Deck Battle's "✕ Back" and the post-battle "Return" button both
+go to Title now (previously they went to the card browser), and the card
+browser gained its own "← Title" button in place of the two battle-launch
+buttons it used to have.
+
+## Gameplay ideas queued for testing (not yet built, 2026-07-12)
+
+Four ideas floated for the next pass on Deck Battle, roughly in the order
+they naturally build on each other:
+
+1. **Recurring/staggered card regeneration.** Right now a creature's
+   ability cards are dealt once, at summon, and gone once played/discarded
+   (a creature only leaves the field once none of its ability cards remain
+   anywhere). Instead: every creature regenerates its ability card(s) at
+   the start of each of the *player's* turns, with higher-tier abilities
+   staggered in over a few turns rather than all available immediately --
+   e.g. a creature with 2 abilities might only offer its first for the
+   turn or two after being summoned, unlocking the second once it's been
+   on the field long enough. Reuses the index-based scaling convention
+   already used elsewhere in `CardDatabase` (ability index doubling as an
+   unlock-turn threshold). Needs at least one multi-ability creature in
+   the actual test roster to be observable (current Suburbs roster is all
+   single-ability).
+2. **Player creature HP.** Once cards regenerate instead of running out,
+   "leaves the field when out of cards" stops making sense as the fizzle
+   condition -- HP needs to come back for player creatures, matching how
+   enemies already work. Pairs with lowering player HP and leaning into
+   blocking with creatures as a regular defensive option, rather than
+   creatures being purely a source of extra attacks.
+3. **Standalone player ability cards**, not tied to any creature -- e.g. a
+   direct-damage "Rock Throw" or a block card the player can always draw
+   into, independent of which creatures happen to be on the field.
+4. **On-summon creature abilities** -- e.g. "on summon, attack target for
+   2" or "on summon, heal target for 2," firing once immediately when the
+   creature is played rather than needing to be manually triggered later.
+
+Battle screen UI/feel still needs another pass -- more feedback on that
+to come once these are in.
+
+## TODO: backgrounds for all scenes
+
+Every scene (title, card browser, options, Deck Battle) currently uses a
+flat solid-color background. Real background art is wanted eventually for
+all of them -- tracked here as a to-do, not being built yet.
+
+## TODO: basic animation pass
+
+Idle animations (simple bob/squash on creature and player art while
+waiting), drop shadows under creatures/player, and short 1-2 frame
+procedural attack lunges -- all intended to be done with `Tween`s on the
+existing static art rather than new sprite-sheet frames, to keep the pass
+small. Not yet started.

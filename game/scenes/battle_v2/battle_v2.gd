@@ -652,4 +652,4 @@ func _refresh_all() -> void:
 
 
 func _return_to_browser() -> void:
-	get_tree().change_scene_to_file("res://scenes/card_browser/card_browser.tscn")
+	get_tree().change_scene_to_file("res://scenes/title/title_screen.tscn")
