@@ -703,7 +703,11 @@ func _layout_hand() -> void:
 		var tile = _hand_tiles[i]
 		var t := 0.0 if count == 1 else (float(i) / float(count - 1)) * 2.0 - 1.0
 		var angle_deg := t * HAND_MAX_ROTATION_DEG
-		var arc_lift := HAND_ARC_LIFT * (t * t)
+		# t*t peaks at the edges (t=+-1) and is 0 at center, so
+		# subtracting it from 1 flips the lift to peak at the center
+		# instead -- the natural "cards fanned in hand" look, where the
+		# two ends droop down and the middle card sits highest.
+		var arc_lift := HAND_ARC_LIFT * (1.0 - t * t)
 		var pos := Vector2(start_x + i * step, hand_area.size.y - card_size.y - arc_lift)
 
 		tile.set_meta("rest_position", pos)
