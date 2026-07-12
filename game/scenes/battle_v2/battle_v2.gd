@@ -8,16 +8,23 @@ extends Control
 ## rather than reusing the original's, so that mode's look and behavior
 ## stay completely untouched.
 ##
-## Interaction model: press-and-drag, not tap-tap. Pressing a hand card
-## lifts it (enlarged, straightened, with a description tooltip);
-## dragging it onto an enemy tile plays it targeting that enemy (for
-## damaging abilities/capture items); dragging a non-targeted card (a
-## creature card, a block-only ability, a healing item) up above the
-## hand releases it; releasing anywhere else snaps it back to the hand.
-## Handled via a global _input() override rather than per-tile gui_input,
-## since gui_input stops firing once the pointer leaves a control's own
-## bounds -- not workable for a drag gesture that ranges across the
-## whole screen.
+## Interaction model, handled via a global _input() override rather than
+## per-tile gui_input (gui_input stops firing once the pointer leaves a
+## control's own bounds -- not workable for a drag gesture that ranges
+## across the whole screen). A press on a hand card doesn't commit to a
+## gesture until it either releases without much movement (a tap) or
+## crosses DRAG_THRESHOLD (a drag), and which kind of drag depends on the
+## card:
+## - A tap toggles "focus" on that card: lifted, enlarged, drawn above
+##   its neighbors, tooltip visible, until tapped again, another card is
+##   tapped, or it's played.
+## - A card that needs a target (a damaging ability, a capture item) arc-
+##   drags: the card itself stays put in hand while an ArcIndicator line
+##   is drawn from it to the pointer; releasing over a valid enemy plays
+##   it targeting that enemy, releasing anywhere else cancels.
+## - A card that doesn't need a target (a creature card, a block-only
+##   ability, a healing item) lift-drags the old way: the whole card
+##   follows the pointer, and releasing above the hand plays it.
 
 const HandCardTileV2Scene := preload("res://scenes/battle_v2/hand_card_tile_v2.tscn")
 const EnemyTileV2Scene := preload("res://scenes/battle_v2/enemy_tile_v2.tscn")
@@ -58,11 +65,19 @@ const HAND_ARC_LIFT := 26.0
 const HAND_OVERLAP := 0.62
 
 ## Drag gesture tuning: how far the pointer must move from the press
-## point before it counts as an actual drag (vs. a tap-to-preview that
-## snaps back), and the lifted/dragged card's scale relative to its
+## point before it counts as an actual drag (vs. a tap, which toggles
+## focus instead), and the lift-dragged card's scale relative to its
 ## resting size.
 const DRAG_THRESHOLD := 14.0
 const DRAG_LIFT_SCALE := 1.35
+
+## Tap-to-focus and arc-drag both use this same "lifted in place" look --
+## a smaller, gentler version of the full lift-drag scale, since neither
+## of these leaves the hand.
+const FOCUS_LIFT := 34.0
+const FOCUS_SCALE := 1.18
+const FOCUS_Z_INDEX := 50
+const ARC_Z_INDEX := 60
 
 @onready var player_panel := $PlayerPanel
 @onready var field_row: GridContainer = $PlayerFieldRow
@@ -99,10 +114,18 @@ var _field_tiles: Array = []
 
 var _pending_draw_cards: Array = []
 
-## Drag state -- see _try_start_drag/_update_drag/_end_drag.
-var _drag_tile: Control = null
-var _drag_started: bool = false
-var _drag_start_pointer: Vector2 = Vector2.ZERO
+## Gesture state -- see _try_start_press/_update_press/_end_press and the
+## _begin_*/_update_*/_end_* trio for each gesture kind.
+var _press_tile: Control = null
+var _press_pointer: Vector2 = Vector2.ZERO
+var _press_started: bool = false
+var _press_needs_target: bool = false
+
+var _drag_tile: Control = null # active lift-drag (non-targeted play)
+var _arc_tile: Control = null # active arc-drag (targeted play)
+var _arc_indicator: ArcIndicator = null
+
+var _focused_tile: Control = null # tap-focused card, if any
 
 
 func _ready() -> void:
@@ -190,31 +213,159 @@ func _on_viewport_resized() -> void:
 	_refresh_all()
 
 
-## Global input handling for the drag-to-play gesture -- see the class
-## doc comment for why this can't just be per-tile gui_input.
+## Global input handling for the tap/drag gestures -- see the class doc
+## comment for why this can't just be per-tile gui_input.
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
-			_try_start_drag(event.position)
-		elif _drag_tile != null:
-			_end_drag(event.position)
+			_try_start_press(event.position)
+		elif _press_tile != null:
+			_end_press(event.position)
 			get_viewport().set_input_as_handled()
-	elif event is InputEventMouseMotion and _drag_tile != null:
-		_update_drag(event.position)
+	elif event is InputEventMouseMotion and _press_tile != null:
+		_update_press(event.position)
 		get_viewport().set_input_as_handled()
 
 
-func _try_start_drag(pointer_pos: Vector2) -> void:
-	if _drag_tile != null:
+func _try_start_press(pointer_pos: Vector2) -> void:
+	if _press_tile != null:
 		return
 	for i in range(_hand_tiles.size() - 1, -1, -1):
 		var tile = _hand_tiles[i]
 		if tile.disabled:
 			continue
 		if tile.get_global_rect().has_point(pointer_pos):
-			_start_drag(tile, pointer_pos)
+			_press_tile = tile
+			_press_pointer = pointer_pos
+			_press_started = false
+			_press_needs_target = _card_needs_target(tile.card)
 			get_viewport().set_input_as_handled()
 			return
+
+	# Pressed somewhere that isn't a playable hand card -- clear any
+	# tap-focused card instead of leaving it stuck open. Doesn't mark the
+	# event handled, so whatever's actually under the pointer (an enemy
+	# tile, a button) still receives it normally.
+	if _focused_tile != null:
+		_set_focused_tile(null)
+
+
+func _update_press(pointer_pos: Vector2) -> void:
+	if _press_tile == null:
+		return
+	if not _press_started:
+		if pointer_pos.distance_to(_press_pointer) <= DRAG_THRESHOLD:
+			return
+		_press_started = true
+		if _focused_tile != null and _focused_tile != _press_tile:
+			_set_focused_tile(null)
+		if _press_needs_target:
+			_begin_arc(_press_tile)
+		else:
+			_begin_lift_drag(_press_tile, pointer_pos)
+
+	if _arc_tile != null:
+		_update_arc(pointer_pos)
+	elif _drag_tile != null:
+		_update_lift_drag(pointer_pos)
+
+
+func _end_press(pointer_pos: Vector2) -> void:
+	var tile := _press_tile
+	var started := _press_started
+	_press_tile = null
+
+	if not started:
+		# A tap: toggle focus rather than playing or dragging anything.
+		if is_instance_valid(tile):
+			_set_focused_tile(null if _focused_tile == tile else tile)
+		return
+
+	if _arc_tile != null:
+		_end_arc(pointer_pos)
+	elif _drag_tile != null:
+		_end_lift_drag(pointer_pos)
+
+
+## Toggles the tap-focused card: resets whichever tile was previously
+## focused back to its normal resting transform, then (if a new tile was
+## given) lifts it slightly, scales it up, draws it above its neighbors,
+## and shows its tooltip -- all without it ever leaving the hand.
+func _set_focused_tile(tile) -> void:
+	if _focused_tile == tile:
+		return
+	var previous = _focused_tile
+	_focused_tile = tile
+	if previous != null and is_instance_valid(previous):
+		_reset_tile_visual(previous)
+	if tile != null:
+		_lift_focus_visual(tile)
+		_show_tooltip(tile.card, tile.global_position)
+	else:
+		_hide_tooltip()
+
+
+func _reset_tile_visual(tile: Control) -> void:
+	var rest_pos: Vector2 = tile.get_meta("rest_position", tile.position)
+	var rest_rot: float = tile.get_meta("rest_rotation", 0.0)
+	var idx := _hand_tiles.find(tile)
+	tile.z_index = maxi(idx, 0)
+	var tween := create_tween()
+	tween.tween_property(tile, "position", rest_pos, 0.12) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(tile, "rotation_degrees", rest_rot, 0.12)
+	tween.parallel().tween_property(tile, "scale", Vector2.ONE, 0.12)
+
+
+func _lift_focus_visual(tile: Control) -> void:
+	var rest_pos: Vector2 = tile.get_meta("rest_position", tile.position)
+	tile.z_index = FOCUS_Z_INDEX
+	var tween := create_tween()
+	tween.tween_property(tile, "position", rest_pos - Vector2(0, FOCUS_LIFT), 0.12) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(tile, "rotation_degrees", 0.0, 0.12)
+	tween.parallel().tween_property(tile, "scale", Vector2.ONE * FOCUS_SCALE, 0.12)
+
+
+## Arc-drag: the card stays in the hand (never reparented -- unlike
+## lift-drag, its position never has to fight a container since it just
+## stays exactly where the fan layout already put it), lifted the same
+## amount a tap-focus would, while an ArcIndicator line is drawn from it
+## to the pointer.
+func _begin_arc(tile: Control) -> void:
+	_arc_tile = tile
+	_lift_focus_visual(tile)
+	tile.z_index = ARC_Z_INDEX
+
+	_arc_indicator = ArcIndicator.new()
+	animation_layer.add_child(_arc_indicator)
+
+	_show_tooltip(tile.card, tile.global_position)
+
+
+func _update_arc(pointer_pos: Vector2) -> void:
+	var origin: Vector2 = _arc_tile.global_position + (_arc_tile.size * _arc_tile.scale) / 2.0
+	_arc_indicator.set_points(origin, pointer_pos)
+	_arc_indicator.set_valid(_find_enemy_target_at(pointer_pos) != null)
+	_position_tooltip(pointer_pos)
+
+
+func _end_arc(pointer_pos: Vector2) -> void:
+	var tile := _arc_tile
+	_arc_tile = null
+	_hide_tooltip()
+	if _arc_indicator != null:
+		_arc_indicator.queue_free()
+		_arc_indicator = null
+	if tile == null or not is_instance_valid(tile):
+		return
+
+	var card: BaseCardData = tile.card
+	var target := _find_enemy_target_at(pointer_pos)
+	var played := target != null and _resolve_card_play(card, target)
+
+	if not played:
+		_reset_tile_visual(tile)
 
 
 ## Reparents the tile into animation_layer (declared after everything
@@ -225,10 +376,8 @@ func _try_start_drag(pointer_pos: Vector2) -> void:
 ## z_index-based. Reparented back to hand_area on snap-back (see
 ## _snap_back); if the card gets played instead, it's simply queue_free()'d
 ## from wherever it currently lives when _rebuild_hand_tiles() runs.
-func _start_drag(tile: Control, pointer_pos: Vector2) -> void:
+func _begin_lift_drag(tile: Control, pointer_pos: Vector2) -> void:
 	_drag_tile = tile
-	_drag_started = false
-	_drag_start_pointer = pointer_pos
 
 	var pos_before_reparent: Vector2 = tile.global_position
 	tile.get_parent().remove_child(tile)
@@ -245,17 +394,13 @@ func _start_drag(tile: Control, pointer_pos: Vector2) -> void:
 	_show_tooltip(tile.card, pointer_pos)
 
 
-func _update_drag(pointer_pos: Vector2) -> void:
-	if _drag_tile == null:
-		return
-	if not _drag_started and pointer_pos.distance_to(_drag_start_pointer) > DRAG_THRESHOLD:
-		_drag_started = true
+func _update_lift_drag(pointer_pos: Vector2) -> void:
 	var lift_size := _hand_card_size() * DRAG_LIFT_SCALE
 	_drag_tile.global_position = pointer_pos - lift_size / 2.0
 	_position_tooltip(pointer_pos)
 
 
-func _end_drag(pointer_pos: Vector2) -> void:
+func _end_lift_drag(pointer_pos: Vector2) -> void:
 	var tile := _drag_tile
 	_drag_tile = null
 	_hide_tooltip()
@@ -263,14 +408,8 @@ func _end_drag(pointer_pos: Vector2) -> void:
 		return
 
 	var card: BaseCardData = tile.card
-	var needs_target := _card_needs_target(card)
 	var played := false
-
-	if needs_target:
-		var target := _find_enemy_target_at(pointer_pos)
-		if target != null:
-			played = _resolve_card_play(card, target)
-	elif _drag_started and pointer_pos.y < hand_area.get_global_rect().position.y:
+	if pointer_pos.y < hand_area.get_global_rect().position.y:
 		played = _resolve_card_play(card, null)
 
 	if not played:
@@ -289,8 +428,6 @@ func _card_needs_target(card: BaseCardData) -> bool:
 		return card.ability.damage > 0
 	if card is ItemCardData:
 		return card.item_type == ItemCardData.ItemType.CAPTURE
-	if card is CardData:
-		return card.on_summon_ability != null and card.on_summon_ability.damage > 0
 	return false
 
 
@@ -298,9 +435,7 @@ func _resolve_card_play(card: BaseCardData, target: BattleCombatant) -> bool:
 	if not battle.can_play_card(card):
 		return false
 	if card is CardData:
-		if card.on_summon_ability != null and card.on_summon_ability.damage > 0 and target == null:
-			return false
-		battle.play_creature_card(card, target)
+		battle.play_creature_card(card)
 		return true
 	elif card is AbilityCardData:
 		if card.ability.damage > 0 and target == null:
@@ -366,7 +501,7 @@ func _describe_card(card: BaseCardData) -> String:
 			desc = "Releases moves into your hand, one more each turn it stays on the field."
 		if card.on_summon_ability != null:
 			if card.on_summon_ability.damage > 0:
-				desc += "\nOn summon: deal %d damage." % card.on_summon_ability.damage
+				desc += "\nOn summon: deal %d damage to a random enemy." % card.on_summon_ability.damage
 			if card.on_summon_ability.heal > 0:
 				desc += "\nOn summon: heal %d HP." % card.on_summon_ability.heal
 		return desc
@@ -514,6 +649,17 @@ func _rebuild_hand_tiles() -> void:
 		tile.queue_free()
 	_hand_tiles.clear()
 
+	# Every existing tile is about to be freed -- drop any gesture/focus
+	# state pointing at one, or _update_press/_end_press etc. would touch
+	# a freed node the next time input arrives.
+	_press_tile = null
+	_drag_tile = null
+	_arc_tile = null
+	_focused_tile = null
+	if _arc_indicator != null:
+		_arc_indicator.queue_free()
+		_arc_indicator = null
+
 	var cards_to_animate := _pending_draw_cards.duplicate()
 	_pending_draw_cards.clear()
 
@@ -538,11 +684,11 @@ func _rebuild_hand_tiles() -> void:
 
 ## Fans every hand tile out from a bottom-center pivot: rotation and a
 ## slight upward arc both increase toward the edges of the hand. Cards
-## currently mid-drag are skipped (their position is driven by the drag
-## gesture instead) -- each tile's computed resting transform is also
-## cached via set_meta so _snap_back can return a released-but-not-played
-## card to exactly the right spot without needing to recompute the whole
-## layout.
+## currently mid-drag, arc-dragging, or tap-focused are skipped (their
+## position/scale is driven by that gesture instead) -- each tile's
+## computed resting transform is also cached via set_meta so _snap_back,
+## _reset_tile_visual, etc. can return a card to exactly the right spot
+## without needing to recompute the whole layout.
 func _layout_hand() -> void:
 	var count := _hand_tiles.size()
 	if count == 0:
@@ -563,7 +709,7 @@ func _layout_hand() -> void:
 		tile.set_meta("rest_position", pos)
 		tile.set_meta("rest_rotation", angle_deg)
 
-		if tile == _drag_tile:
+		if tile == _drag_tile or tile == _arc_tile or tile == _focused_tile:
 			continue
 
 		tile.size = card_size
@@ -694,7 +840,7 @@ func _refresh_all() -> void:
 	elif not battle.is_player_turn:
 		hint_label.text = "Enemy turn…"
 	else:
-		hint_label.text = "Drag a card onto an enemy to attack, or drag it up to play"
+		hint_label.text = "Tap a card to inspect it. Drag an arc onto an enemy to target, or drag a card up to play it"
 
 	for tile in _hand_tiles:
 		tile.set_disabled(not battle.can_play_card(tile.card))

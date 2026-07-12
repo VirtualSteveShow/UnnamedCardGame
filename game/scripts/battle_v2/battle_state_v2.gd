@@ -95,14 +95,13 @@ func can_play_card(card: BaseCardData) -> bool:
 ## use before it's discarded unused. Later abilities stagger in via
 ## _regenerate_field_abilities instead, at full cost.
 ##
-## target is only required if the creature has an on-summon ability that
-## deals damage (see CardData.on_summon_ability) -- the caller (battle_v2.gd's
-## _card_needs_target) is expected to have already checked that before
-## the drag gesture was allowed to resolve without a target.
-func play_creature_card(card: CardData, target: BattleCombatant = null) -> void:
+## Creature cards never require a target to play, even ones with a
+## damaging on-summon ability -- that ability auto-targets a random
+## living enemy (see _resolve_on_summon) instead of making the player aim
+## the creature card itself, so playing a creature always uses the same
+## "drag it up" gesture regardless of what it does on summon.
+func play_creature_card(card: CardData) -> void:
 	if not can_play_card(card):
-		return
-	if card.on_summon_ability != null and card.on_summon_ability.damage > 0 and target == null:
 		return
 
 	energy -= card.energy_cost
@@ -114,7 +113,7 @@ func play_creature_card(card: CardData, target: BattleCombatant = null) -> void:
 	creature_entered_field.emit(combatant)
 
 	if card.on_summon_ability != null:
-		_resolve_on_summon(card, card.on_summon_ability, target)
+		_resolve_on_summon(card, card.on_summon_ability)
 
 	var generated: Array[BaseCardData] = []
 	if not card.abilities.is_empty():
@@ -129,28 +128,38 @@ func play_creature_card(card: CardData, target: BattleCombatant = null) -> void:
 
 
 ## Resolves a creature's on-summon ability immediately after it enters
-## the field: damage requires (and was already validated to have) a
-## target, healing always applies to the player. Reuses the ability_played
-## signal for the damage case so the UI plays the same "pops out and
-## attacks" animation a regular ability card would, without needing a
-## real hand card to back it.
-func _resolve_on_summon(source: CardData, ability: CardAbility, target: BattleCombatant) -> void:
-	if ability.damage > 0 and target != null:
-		var anim_card := AbilityCardData.new()
-		anim_card.source_creature = source
-		anim_card.ability = ability
-		anim_card.art_texture = source.get_battle_texture()
-		ability_played.emit(anim_card, target)
+## the field: damage auto-targets a random living enemy (there's no
+## living enemy if the enemy team is already wiped, in which case it
+## simply doesn't fire), healing always applies to the player. Reuses the
+## ability_played signal for the damage case so the UI plays the same
+## "pops out and attacks" animation a regular ability card would, without
+## needing a real hand card to back it.
+func _resolve_on_summon(source: CardData, ability: CardAbility) -> void:
+	if ability.damage > 0:
+		var target := _pick_random_living_enemy()
+		if target != null:
+			var anim_card := AbilityCardData.new()
+			anim_card.source_creature = source
+			anim_card.ability = ability
+			anim_card.art_texture = source.get_battle_texture()
+			ability_played.emit(anim_card, target)
 
-		var dealt := target.take_damage(ability.damage)
-		log_message.emit("%s's %s hits %s for %d damage!" % [
-			source.card_name, ability.ability_name, target.data.card_name, dealt])
-		_check_battle_over()
+			var dealt := target.take_damage(ability.damage)
+			log_message.emit("%s's %s hits %s for %d damage!" % [
+				source.card_name, ability.ability_name, target.data.card_name, dealt])
+			_check_battle_over()
 
 	if ability.heal > 0:
 		var healed: int = mini(ability.heal, player_max_hp - player_hp)
 		player_hp += healed
 		log_message.emit("%s's %s heals you for %d HP." % [source.card_name, ability.ability_name, healed])
+
+
+func _pick_random_living_enemy() -> BattleCombatant:
+	var living: Array = enemy_team.filter(func(e): return e.is_alive())
+	if living.is_empty():
+		return null
+	return living[randi() % living.size()]
 
 
 ## Builds one playable AbilityCardData for a creature's ability. The
