@@ -474,6 +474,86 @@ playing only one of its two ability cards leaves it on the field, and
 playing the second causes it to flee; a 1-ability creature (House Cat)
 flees immediately after its single ability is played.
 
+**Slay the Spire visual/interaction pass (2026-07-12)**: user provided a
+side-by-side reference screenshot and asked Deck Battle to match Slay the
+Spire's actual UI as closely as reasonably possible. Went through the
+reference element by element; skipped gold/potion-slots/floor-counter
+(the meta UI in Slay the Spire's top bar) since those need systems that
+don't exist yet -- user confirmed an equivalent (a backpack/items system,
+and definitely a currency) is wanted eventually, just not now, so this is
+flagged as a real future to-do rather than dropped. Everything else was
+buildable as pure UI/interaction work:
+
+- **New battle_v2-only tile scenes**, not restyles of the shared ones --
+  `hand_card_tile_v2` (StS-style card: rounded rect, border color-coded by
+  inferred type -- red Attack for damage>0 ability cards, blue Skill for
+  block-only, green Monster for creature cards, gold Item for item cards
+  -- plus a circular cost badge) and `enemy_tile_v2` (sprite with a slim
+  *always-red* HP bar directly underneath, no boxed name/HP panel --
+  Slay the Spire's HP bars are always red for both sides, not
+  color-by-percentage the way this project's other tiles are).
+  `PlayerPanel` restyled the same way: no more boxed background/"YOU"
+  label, just the sprite with a slim red bar under its feet. Same
+  rationale as `field_monster_tile` earlier -- keeps the original Battle
+  Test's look completely untouched rather than repurposing shared scenes.
+- **Fanned hand** (`_layout_hand()` in battle_v2.gd): `HandRow` stopped
+  being an `HBoxContainer` -- hand cards are now manually positioned
+  Controls in a plain `HandArea`, each given a rotation and a slight
+  upward arc lift that both scale with distance from the center card
+  (`t*t` for the arc, matching a real fanned hand rather than a linear
+  ramp). Dropped the hand-focus/collapse mechanic entirely -- Slay the
+  Spire's hand has no collapsed state, and the fan + drag interaction
+  replaces what that feature was solving anyway.
+- **Drag-to-target play, replacing tap-tap**: pressing a hand card lifts
+  it (enlarged, rotation straightened, a description tooltip appears);
+  dragging it onto an enemy tile plays it targeting that enemy (for
+  damaging abilities and capture items); dragging a non-targeted card
+  (creature cards, block-only abilities, healing items) up above the
+  hand's own top edge releases it; anything else snaps back. Implemented
+  via a global `_input()` override on the scene root rather than
+  per-tile `gui_input`, since `gui_input` stops firing the instant the
+  pointer leaves that control's own bounds -- not workable for a drag
+  that ranges across the whole screen. The root only marks an event
+  handled (blocking normal button clicks) when a press actually lands on
+  a playable hand tile, so End Turn/Return/pile buttons keep working
+  normally. The dragged tile is reparented into `AnimationLayer` for the
+  duration of the drag and back into `HandArea` on snap-back, since
+  sibling draw order in Godot is primarily tree-order-based -- z_index
+  alone isn't reliable for making a `HandArea` child render above a
+  *later* sibling subtree like the energy orb.
+- **Procedural energy orb** (`energy_orb.tscn`): a circular ring +
+  bright fill + count label built entirely from `StyleBoxFlat` circles,
+  no art asset, replacing the plain "Energy: 3/3" text.
+- **Corner pile icons** (`corner_pile_button.tscn`): small card-back +
+  count widgets in the bottom corners, replacing the big labeled
+  `DRAW PILE`/`DISCARD PILE` boxes -- same tap-to-view-contents behavior
+  as before, just restyled.
+- **Hexagonal End Turn button** (`hex_end_turn_button.tscn`/`.gd`): a
+  custom `_draw()` polygon, since `StyleBoxFlat` only supports rounded
+  rectangles, not angled/hex corners -- no art asset needed for a simple
+  flat-sided hex shape.
+
+**Deferred to a follow-up pass**: enemy intent icons (the flame icon in
+Slay the Spire telegraphing an enemy's next move) -- our enemies currently
+pick a random ability live when their turn actually runs
+(`_run_enemy_turn()`), so showing an intent icon during the *player's*
+turn would need pre-rolling each enemy's chosen move a turn ahead and
+storing it, not just a visual addition.
+
+**Verified**: headless editor import (all new scenes/scripts registered
+cleanly), all three scenes (card browser, original Battle Test, new Deck
+Battle) play-tested headless with zero errors. Since a real press-drag-
+release gesture can't be synthesized headlessly, verified the underlying
+logic directly instead: a temporary script confirmed the fan layout
+produces symmetric, varying positions/rotations across the hand (not all
+stacked at one spot), that card-type target-requirement classification is
+correct (a creature card needs no target, a damaging ability card does),
+that a point at an enemy tile's own center correctly resolves to that
+enemy via `_find_enemy_target_at()`, and that resolving a play through
+`_resolve_card_play()` correctly damages the target. **Not yet tested
+on-device with a real finger-drag gesture** -- the interaction timing/feel
+can only really be confirmed there.
+
 ## Run structure (discussed, not yet decided/built)
 
 Two options on the table for how a run is actually navigated:

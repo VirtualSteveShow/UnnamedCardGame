@@ -1,76 +1,76 @@
 extends Control
-## Hand-based combat prototype -- see docs/gameplay-notes.md's Experimental
-## Mode section for the full design rationale. A deliberately separate
-## scene from scenes/battle/battle.gd, sharing only generic sub-scenes
-## (pile_button, battle_combatant_tile, battle_hand_card_tile) so the
-## original battlefield combat prototype stays completely untouched and
-## playable exactly as before.
+## Hand-based combat prototype, restyled to closely match Slay the
+## Spire's actual UI/interaction -- see docs/gameplay-notes.md's
+## Experimental Mode section for the full design rationale. A
+## deliberately separate scene from scenes/battle/battle.gd; even the
+## tile sub-scenes are now battle_v2-specific (hand_card_tile_v2,
+## enemy_tile_v2, energy_orb, corner_pile_button, hex_end_turn_button)
+## rather than reusing the original's, so that mode's look and behavior
+## stay completely untouched.
 ##
-## Enemy team is a fixed HP-based roster on the right, same as the
-## original battle scene. There's no player creature row -- the player has
-## a personal HP/block pool (PlayerPanel) instead, and enemies attack that
-## directly. Every hand card is tapped directly with no "select a
-## creature, then pick its ability" step:
-##
-## - Tap a creature card in hand -> discards it immediately and releases
-##   one ability card per ability it has into your hand.
-## - Tap a generated ability card -> if it deals damage, waits for an
-##   enemy tap to target; if it's block-only, resolves immediately.
-## - Tap an item card -> healing resolves immediately (targets the
-##   player directly, there's no player creature to choose between
-##   anymore); capture waits for an enemy tap to target.
-##
-## Entry point: the "Deck Battle (Prototype)" button in the card browser,
-## separate from the original "Battle Test" button.
+## Interaction model: press-and-drag, not tap-tap. Pressing a hand card
+## lifts it (enlarged, straightened, with a description tooltip);
+## dragging it onto an enemy tile plays it targeting that enemy (for
+## damaging abilities/capture items); dragging a non-targeted card (a
+## creature card, a block-only ability, a healing item) up above the
+## hand releases it; releasing anywhere else snaps it back to the hand.
+## Handled via a global _input() override rather than per-tile gui_input,
+## since gui_input stops firing once the pointer leaves a control's own
+## bounds -- not workable for a drag gesture that ranges across the
+## whole screen.
 
-const CombatantTileScene := preload("res://scenes/battle/battle_combatant_tile.tscn")
-const HandTileScene := preload("res://scenes/battle/battle_hand_card_tile.tscn")
+const HandCardTileV2Scene := preload("res://scenes/battle_v2/hand_card_tile_v2.tscn")
+const EnemyTileV2Scene := preload("res://scenes/battle_v2/enemy_tile_v2.tscn")
 const FieldMonsterTileScene := preload("res://scenes/battle_v2/field_monster_tile.tscn")
 
 const DRAW_ANIM_DURATION := 0.35
 const DRAW_ANIM_STAGGER := 0.1
 
-## See battle.gd's identical constant for the full rationale: HandRow's
-## rect is fixed at all times, only card size/interactivity change with
-## focus, to avoid ever risking overlapping another row.
-const HAND_SMALL_HEIGHT_FRACTION := 0.11
-
-## Fixed deck/enemy roster for this prototype, mirroring battle.gd's own
-## hardcoded test matchup -- no "build your deck" flow exists yet here
-## either. Deliberately smaller than the original Battle Test's deck since
-## every creature card now generates extra ability cards on top of itself.
 const PLAYER_DECK_CREATURES := ["House Cat", "House Cat", "Family Dog", "Squirrel"]
 const PLAYER_DECK_ITEMS := ["Cat Carrier", "Band-Aid", "Band-Aid"]
 
 const ENEMY_TEAM_NAMES := ["Rabbit", "Robin", "Hamster"]
 
-const MAX_LOG_LINES := 5
+const MAX_LOG_LINES := 3
 
-## How long the "monster pops out and attacks" flourish takes -- see
-## _on_ability_played().
 const ABILITY_POP_DURATION := 0.25
 const ABILITY_POP_HOLD := 0.25
 
-## How long a creature takes to fade/scale onto the field when played, and
-## to slide/fade off when it flees -- see _on_creature_entered_field() /
-## _on_creature_left_field().
 const FIELD_ENTER_DURATION := 0.25
 const FIELD_FLEE_DURATION := 0.3
+
+## Fan layout tuning: how wide a hand card is (fraction of viewport
+## width), how far each card rotates at the extremes of the hand, how
+## much the outer cards lift relative to the center, and how much each
+## card overlaps the last (fraction of card width per step).
+const HAND_CARD_WIDTH_FRACTION := 0.085
+const HAND_MAX_ROTATION_DEG := 12.0
+const HAND_ARC_LIFT := 26.0
+const HAND_OVERLAP := 0.62
+
+## Drag gesture tuning: how far the pointer must move from the press
+## point before it counts as an actual drag (vs. a tap-to-preview that
+## snaps back), and the lifted/dragged card's scale relative to its
+## resting size.
+const DRAG_THRESHOLD := 14.0
+const DRAG_LIFT_SCALE := 1.35
 
 @onready var player_panel := $PlayerPanel
 @onready var field_row: VBoxContainer = $PlayerFieldRow
 @onready var enemy_row: VBoxContainer = $EnemyRow
-@onready var hand_row: HBoxContainer = $HandRow
-@onready var hand_focus_catcher: Button = $HandFocusCatcher
-@onready var hand_scrim: Button = $HandScrim
-@onready var deck_pile_button := $PileRow/DeckPileButton
-@onready var discard_pile_button := $PileRow/DiscardPileButton
+@onready var hand_area: Control = $HandArea
+@onready var energy_orb := $EnergyOrb
+@onready var draw_pile_button := $DrawPileButton
+@onready var discard_pile_button := $DiscardPileButton
+@onready var end_turn_button := $HexEndTurnButton
 @onready var log_label: Label = $LogLabel
 @onready var hint_label: Label = $HintLabel
-@onready var energy_label: Label = $EnergyLabel
-@onready var end_turn_button: Button = $EndTurnButton
 @onready var return_button: Button = $ReturnButton
 @onready var animation_layer: Control = $AnimationLayer
+
+@onready var tooltip_panel: Panel = $CardTooltip
+@onready var tooltip_title_label: Label = $CardTooltip/TitleLabel
+@onready var tooltip_desc_label: Label = $CardTooltip/DescLabel
 
 @onready var result_overlay: Control = $ResultOverlay
 @onready var result_label: Label = $ResultOverlay/ResultPanel/ResultLabel
@@ -88,11 +88,12 @@ var _enemy_tiles: Array = []
 var _hand_tiles: Array = []
 var _field_tiles: Array = []
 
-var _pending_ability_card: AbilityCardData = null
-var _pending_item: ItemCardData = null
-
 var _pending_draw_cards: Array = []
-var _hand_focused: bool = false
+
+## Drag state -- see _try_start_drag/_update_drag/_end_drag.
+var _drag_tile: Control = null
+var _drag_started: bool = false
+var _drag_start_pointer: Vector2 = Vector2.ZERO
 
 
 func _ready() -> void:
@@ -118,68 +119,206 @@ func _ready() -> void:
 	battle.creature_left_field.connect(_on_creature_left_field)
 
 	for combatant in battle.enemy_team:
-		var tile := CombatantTileScene.instantiate()
+		var tile := EnemyTileV2Scene.instantiate()
 		enemy_row.add_child(tile)
 		_lock_tile_size(tile)
-		tile.setup(combatant, true)
-		tile.tapped.connect(_on_enemy_tile_tapped)
+		tile.setup(combatant)
 		_enemy_tiles.append(tile)
 
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
 	return_button.pressed.connect(_return_to_browser)
 	result_return_button.pressed.connect(_return_to_browser)
-	_lock_tile_size(deck_pile_button)
-	deck_pile_button.set_label("DRAW PILE")
-	deck_pile_button.tapped.connect(_on_deck_pile_tapped)
-	_lock_tile_size(discard_pile_button)
-	discard_pile_button.set_label("DISCARD PILE")
+	draw_pile_button.tapped.connect(_on_deck_pile_tapped)
 	discard_pile_button.tapped.connect(_on_discard_pile_tapped)
 	pile_view_close_button.pressed.connect(func() -> void: pile_view_overlay.visible = false)
-	hand_focus_catcher.pressed.connect(func() -> void: _set_hand_focused(true))
-	hand_scrim.pressed.connect(func() -> void: _set_hand_focused(false))
-	get_viewport().size_changed.connect(_refresh_all)
+	get_viewport().size_changed.connect(_on_viewport_resized)
+
+	tooltip_panel.visible = false
 
 	battle.start_battle()
 	_rebuild_hand_tiles()
 	_refresh_all()
 
 
-func _on_hand_card_tapped(card: BaseCardData) -> void:
-	if not battle.can_play_card(card):
+func _on_viewport_resized() -> void:
+	_layout_hand()
+	_refresh_all()
+
+
+## Global input handling for the drag-to-play gesture -- see the class
+## doc comment for why this can't just be per-tile gui_input.
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			_try_start_drag(event.position)
+		elif _drag_tile != null:
+			_end_drag(event.position)
+			get_viewport().set_input_as_handled()
+	elif event is InputEventMouseMotion and _drag_tile != null:
+		_update_drag(event.position)
+		get_viewport().set_input_as_handled()
+
+
+func _try_start_drag(pointer_pos: Vector2) -> void:
+	if _drag_tile != null:
+		return
+	for i in range(_hand_tiles.size() - 1, -1, -1):
+		var tile = _hand_tiles[i]
+		if tile.disabled:
+			continue
+		if tile.get_global_rect().has_point(pointer_pos):
+			_start_drag(tile, pointer_pos)
+			get_viewport().set_input_as_handled()
+			return
+
+
+## Reparents the tile into animation_layer (declared after everything
+## else in the scene tree) for the duration of the drag -- z_index alone
+## isn't reliable for making a HandArea child render above a LATER
+## sibling subtree like EnergyOrb or the pile buttons, since sibling
+## subtree draw order is primarily tree-order-based in Godot, not purely
+## z_index-based. Reparented back to hand_area on snap-back (see
+## _snap_back); if the card gets played instead, it's simply queue_free()'d
+## from wherever it currently lives when _rebuild_hand_tiles() runs.
+func _start_drag(tile: Control, pointer_pos: Vector2) -> void:
+	_drag_tile = tile
+	_drag_started = false
+	_drag_start_pointer = pointer_pos
+
+	var pos_before_reparent: Vector2 = tile.global_position
+	tile.get_parent().remove_child(tile)
+	animation_layer.add_child(tile)
+	tile.global_position = pos_before_reparent
+
+	var lift_size := _hand_card_size() * DRAG_LIFT_SCALE
+	tile.pivot_offset = lift_size / 2.0
+	var tween := create_tween()
+	tween.tween_property(tile, "size", lift_size, 0.12)
+	tween.parallel().tween_property(tile, "rotation_degrees", 0.0, 0.12)
+	tween.parallel().tween_property(tile, "global_position", pointer_pos - lift_size / 2.0, 0.12)
+
+	_show_tooltip(tile.card, pointer_pos)
+
+
+func _update_drag(pointer_pos: Vector2) -> void:
+	if _drag_tile == null:
+		return
+	if not _drag_started and pointer_pos.distance_to(_drag_start_pointer) > DRAG_THRESHOLD:
+		_drag_started = true
+	var lift_size := _hand_card_size() * DRAG_LIFT_SCALE
+	_drag_tile.global_position = pointer_pos - lift_size / 2.0
+	_position_tooltip(pointer_pos)
+
+
+func _end_drag(pointer_pos: Vector2) -> void:
+	var tile := _drag_tile
+	_drag_tile = null
+	_hide_tooltip()
+	if tile == null or not is_instance_valid(tile):
 		return
 
+	var card: BaseCardData = tile.card
+	var needs_target := _card_needs_target(card)
+	var played := false
+
+	if needs_target:
+		var target := _find_enemy_target_at(pointer_pos)
+		if target != null:
+			played = _resolve_card_play(card, target)
+	elif _drag_started and pointer_pos.y < hand_area.get_global_rect().position.y:
+		played = _resolve_card_play(card, null)
+
+	if not played:
+		_snap_back(tile)
+
+
+func _find_enemy_target_at(pointer_pos: Vector2) -> BattleCombatant:
+	for tile in _enemy_tiles:
+		if tile.combatant.is_alive() and tile.get_global_rect().has_point(pointer_pos):
+			return tile.combatant
+	return null
+
+
+func _card_needs_target(card: BaseCardData) -> bool:
+	if card is AbilityCardData:
+		return card.ability.damage > 0
+	if card is ItemCardData:
+		return card.item_type == ItemCardData.ItemType.CAPTURE
+	return false
+
+
+func _resolve_card_play(card: BaseCardData, target: BattleCombatant) -> bool:
+	if not battle.can_play_card(card):
+		return false
 	if card is CardData:
 		battle.play_creature_card(card)
+		return true
 	elif card is AbilityCardData:
-		if card.ability.damage > 0:
-			_pending_item = null
-			_pending_ability_card = card
-			_refresh_all()
-		else:
-			battle.play_ability_card(card, null)
+		if card.ability.damage > 0 and target == null:
+			return false
+		battle.play_ability_card(card, target)
+		return true
 	elif card is ItemCardData:
-		if card.item_type == ItemCardData.ItemType.HEALING:
-			battle.play_item_card(card, null)
-		else:
-			_pending_ability_card = null
-			_pending_item = card
-			_refresh_all()
+		if card.item_type == ItemCardData.ItemType.CAPTURE and target == null:
+			return false
+		battle.play_item_card(card, target)
+		return true
+	return false
 
 
-func _on_enemy_tile_tapped(combatant: BattleCombatant) -> void:
-	if not combatant.is_alive():
-		return
-	if _pending_ability_card != null:
-		battle.play_ability_card(_pending_ability_card, combatant)
-		_pending_ability_card = null
-	elif _pending_item != null:
-		battle.play_item_card(_pending_item, combatant)
-		_pending_item = null
+func _snap_back(tile: Control) -> void:
+	var rest_size := _hand_card_size()
+	var rest_pos: Vector2 = tile.get_meta("rest_position", tile.position)
+	var rest_rot: float = tile.get_meta("rest_rotation", 0.0)
+
+	var tween := create_tween()
+	tween.tween_property(tile, "global_position", hand_area.global_position + rest_pos, 0.15) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(tile, "size", rest_size, 0.15)
+	tween.parallel().tween_property(tile, "rotation_degrees", rest_rot, 0.15)
+	tween.tween_callback(func() -> void:
+		if not is_instance_valid(tile):
+			return
+		tile.pivot_offset = Vector2(rest_size.x / 2.0, rest_size.y * 1.1)
+		var pos_before_reparent: Vector2 = tile.global_position
+		tile.get_parent().remove_child(tile)
+		hand_area.add_child(tile)
+		tile.global_position = pos_before_reparent
+		tile.position = rest_pos
+	)
+
+
+func _show_tooltip(card: BaseCardData, near_pointer: Vector2) -> void:
+	tooltip_title_label.text = card.card_name
+	tooltip_desc_label.text = _describe_card(card)
+	tooltip_panel.visible = true
+	_position_tooltip(near_pointer)
+
+
+func _position_tooltip(near_pointer: Vector2) -> void:
+	tooltip_panel.global_position = near_pointer + Vector2(90, -160)
+
+
+func _hide_tooltip() -> void:
+	tooltip_panel.visible = false
+
+
+func _describe_card(card: BaseCardData) -> String:
+	if card is AbilityCardData:
+		var parts: Array[String] = []
+		if card.ability.damage > 0:
+			parts.append("Deal %d damage." % card.ability.damage)
+		if card.ability.block > 0:
+			parts.append("Gain %d Block." % card.ability.block)
+		return "\n".join(parts)
+	elif card is CardData:
+		return "Releases %d move card(s) into your hand." % card.abilities.size()
+	elif card is ItemCardData:
+		return card.description
+	return ""
 
 
 func _on_end_turn_pressed() -> void:
-	_pending_ability_card = null
-	_pending_item = null
 	battle.end_player_turn()
 
 
@@ -194,14 +333,6 @@ func _on_cards_drawn(cards: Array) -> void:
 	_pending_draw_cards.append_array(cards)
 
 
-## Plays a brief "the monster pops out and attacks" flourish using the
-## ability card's own art (already set to the source creature's battle
-## sprite when the ability card was created) -- flies from the hand
-## toward the target enemy tile (or hovers over the player panel for a
-## block-only ability), then fades out. Purely cosmetic: fires from
-## BattleStateV2.ability_played, which is emitted before the actual
-## damage/log resolution, but this coroutine runs independently and
-## doesn't block or delay that resolution.
 func _on_ability_played(card: AbilityCardData, target: BattleCombatant) -> void:
 	var start_pos: Vector2 = player_panel.global_position + player_panel.size / 2.0
 	for tile in _field_tiles:
@@ -240,9 +371,6 @@ func _on_ability_played(card: AbilityCardData, target: BattleCombatant) -> void:
 	tween.tween_callback(sprite.queue_free)
 
 
-## Adds a field tile for a newly played creature and fades it in --
-## BattleStateV2.field_monsters is already updated by the time this
-## fires, this is purely the visual side.
 func _on_creature_entered_field(card: CardData) -> void:
 	var tile := FieldMonsterTileScene.instantiate()
 	field_row.add_child(tile)
@@ -257,13 +385,6 @@ func _on_creature_entered_field(card: CardData) -> void:
 	_refresh_all()
 
 
-## Removes the field tile for a creature whose ability cards are all gone
-## from hand (played or discarded) -- fades and slides it out ("flees")
-## rather than vanishing instantly. Reparents into animation_layer (a
-## plain Control, not a container) before animating: the tile is dropped
-## from _field_tiles first, so the very next _refresh_all() would resize
-## the remaining field tiles and re-sort the container, which would fight
-## a position/opacity tween running on a tile still parented inside it.
 func _on_creature_left_field(card: CardData) -> void:
 	var tile_to_remove = null
 	for tile in _field_tiles:
@@ -309,26 +430,12 @@ func _show_pile_view(title: String, cards: Array) -> void:
 
 	pile_view_title.text = "%s (%d)" % [title, cards.size()]
 	for card in cards:
-		var tile := HandTileScene.instantiate()
+		var tile := HandCardTileV2Scene.instantiate()
 		pile_view_grid.add_child(tile)
-		_lock_tile_size(tile)
 		tile.setup(card)
-		tile.disabled = true
+		tile.set_disabled(true)
 
 	pile_view_overlay.visible = true
-
-
-func _set_hand_focused(focused: bool) -> void:
-	if _hand_focused == focused:
-		return
-	_hand_focused = focused
-
-	hand_focus_catcher.mouse_filter = Control.MOUSE_FILTER_IGNORE if focused else Control.MOUSE_FILTER_STOP
-
-	hand_scrim.visible = focused
-	hand_scrim.mouse_filter = Control.MOUSE_FILTER_STOP if focused else Control.MOUSE_FILTER_IGNORE
-
-	_refresh_all()
 
 
 func _on_state_changed() -> void:
@@ -344,18 +451,19 @@ func _rebuild_hand_tiles() -> void:
 
 	var cards_to_animate := _pending_draw_cards.duplicate()
 	_pending_draw_cards.clear()
-	var tiles_to_animate: Array = []
 
 	for card in battle.player_hand:
-		var tile := HandTileScene.instantiate()
-		hand_row.add_child(tile)
-		_lock_tile_size(tile)
+		var tile := HandCardTileV2Scene.instantiate()
+		hand_area.add_child(tile)
 		tile.setup(card)
-		tile.disabled = not battle.can_play_card(card)
-		tile.set_selected(card == _pending_ability_card or card == _pending_item)
-		tile.tapped.connect(_on_hand_card_tapped)
+		tile.set_disabled(not battle.can_play_card(card))
 		_hand_tiles.append(tile)
-		if card in cards_to_animate:
+
+	_layout_hand()
+
+	var tiles_to_animate: Array = []
+	for tile in _hand_tiles:
+		if tile.card in cards_to_animate:
 			tile.modulate.a = 0.0
 			tiles_to_animate.append(tile)
 
@@ -363,10 +471,49 @@ func _rebuild_hand_tiles() -> void:
 		_animate_drawn_cards(tiles_to_animate)
 
 
-func _animate_drawn_cards(tiles: Array) -> void:
-	await get_tree().process_frame
-	await get_tree().process_frame
+## Fans every hand tile out from a bottom-center pivot: rotation and a
+## slight upward arc both increase toward the edges of the hand. Cards
+## currently mid-drag are skipped (their position is driven by the drag
+## gesture instead) -- each tile's computed resting transform is also
+## cached via set_meta so _snap_back can return a released-but-not-played
+## card to exactly the right spot without needing to recompute the whole
+## layout.
+func _layout_hand() -> void:
+	var count := _hand_tiles.size()
+	if count == 0:
+		return
 
+	var card_size := _hand_card_size()
+	var step := card_size.x * HAND_OVERLAP
+	var total_width := step * (count - 1) + card_size.x
+	var start_x := (hand_area.size.x - total_width) / 2.0
+
+	for i in count:
+		var tile = _hand_tiles[i]
+		var t := 0.0 if count == 1 else (float(i) / float(count - 1)) * 2.0 - 1.0
+		var angle_deg := t * HAND_MAX_ROTATION_DEG
+		var arc_lift := HAND_ARC_LIFT * (t * t)
+		var pos := Vector2(start_x + i * step, hand_area.size.y - card_size.y - arc_lift)
+
+		tile.set_meta("rest_position", pos)
+		tile.set_meta("rest_rotation", angle_deg)
+
+		if tile == _drag_tile:
+			continue
+
+		tile.size = card_size
+		tile.pivot_offset = Vector2(card_size.x / 2.0, card_size.y * 1.1)
+		tile.position = pos
+		tile.rotation_degrees = angle_deg
+		tile.z_index = i
+
+
+func _hand_card_size() -> Vector2:
+	var w := get_viewport_rect().size.x * HAND_CARD_WIDTH_FRACTION
+	return Vector2(w, w / BaseCardData.ASPECT_RATIO)
+
+
+func _animate_drawn_cards(tiles: Array) -> void:
 	for i in tiles.size():
 		var tile = tiles[i]
 		if is_instance_valid(tile):
@@ -374,18 +521,19 @@ func _animate_drawn_cards(tiles: Array) -> void:
 
 
 func _fly_card_from_deck(tile: Control, delay: float) -> void:
-	var ghost := HandTileScene.instantiate()
+	var ghost := HandCardTileV2Scene.instantiate()
 	animation_layer.add_child(ghost)
 	ghost.setup(tile.card)
-	ghost.disabled = true
+	ghost.set_disabled(true)
 	ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ghost.size = tile.size
+	ghost.rotation_degrees = tile.rotation_degrees
 
 	var target_pos: Vector2 = tile.global_position
 	var target_size: Vector2 = tile.size
 	var start_size: Vector2 = target_size * 0.3
-	var start_pos: Vector2 = deck_pile_button.global_position \
-		+ deck_pile_button.size / 2.0 - start_size / 2.0
+	var start_pos: Vector2 = draw_pile_button.global_position \
+		+ draw_pile_button.size / 2.0 - start_size / 2.0
 
 	ghost.global_position = start_pos
 	ghost.size = start_size
@@ -412,17 +560,16 @@ func _remove_dead_enemy_tiles() -> void:
 			_enemy_tiles.remove_at(i)
 
 
-## See battle.gd's identical helper for the full rationale: a Container
-## stretches children to fill its cross-axis by default regardless of
-## custom_minimum_size, so every dynamically created tile needs this to
-## make custom_minimum_size actually authoritative.
+## See the original battle.gd's identical helper for the full rationale:
+## a Container stretches children to fill its cross-axis by default
+## regardless of custom_minimum_size, so enemy/field tiles (still
+## Container-managed, unlike the manually-positioned hand) need this to
+## make custom_minimum_size authoritative.
 func _lock_tile_size(tile: Control) -> void:
 	tile.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	tile.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
 
-## See battle.gd's identical helper for the full rationale (vertical_stack
-## picks which axis the tile count divides).
 func _fit_tile_size(available: Vector2, count: int, separation: float, vertical_stack: bool = false) -> Vector2:
 	var tile_width: float
 	var tile_height: float
@@ -457,15 +604,6 @@ func _fit_tile_size(available: Vector2, count: int, separation: float, vertical_
 	return Vector2(maxf(tile_width, 40.0), maxf(tile_height, 60.0))
 
 
-func _resize_row(row: HBoxContainer, tiles: Array) -> void:
-	if tiles.is_empty():
-		return
-	var separation: float = row.get_theme_constant("separation")
-	var tile_size := _fit_tile_size(row.size, tiles.size(), separation)
-	for tile in tiles:
-		tile.custom_minimum_size = tile_size
-
-
 func _resize_enemy_row() -> void:
 	if _enemy_tiles.is_empty():
 		return
@@ -484,49 +622,27 @@ func _resize_field_row() -> void:
 		tile.custom_minimum_size = tile_size
 
 
-func _small_hand_tile_size() -> Vector2:
-	var h := get_viewport_rect().size.y * HAND_SMALL_HEIGHT_FRACTION
-	return Vector2(h * BaseCardData.ASPECT_RATIO, h)
-
-
 func _refresh_all() -> void:
 	_resize_enemy_row()
 	_resize_field_row()
-
-	var pile_size := _small_hand_tile_size()
-	if _hand_focused:
-		_resize_row(hand_row, _hand_tiles)
-	else:
-		for tile in _hand_tiles:
-			tile.custom_minimum_size = pile_size
-
-	deck_pile_button.custom_minimum_size = pile_size
-	discard_pile_button.custom_minimum_size = pile_size
 
 	for tile in _enemy_tiles:
 		tile.refresh()
 	player_panel.refresh(battle.player_hp, battle.player_max_hp, battle.player_block)
 
-	energy_label.text = "Energy: %d/%d" % [battle.energy, BattleStateV2.ENERGY_PER_TURN]
-	deck_pile_button.set_count(battle.player_deck.size())
+	energy_orb.set_energy(battle.energy, BattleStateV2.ENERGY_PER_TURN)
+	draw_pile_button.set_count(battle.player_deck.size())
 	discard_pile_button.set_count(battle.player_discard.size())
 
 	if battle.is_over:
 		hint_label.text = ""
-	elif _pending_ability_card != null:
-		hint_label.text = "Choose an enemy to target with %s" % _pending_ability_card.ability.ability_name
-	elif _pending_item != null:
-		hint_label.text = "Choose an enemy to target with %s" % _pending_item.card_name
 	elif not battle.is_player_turn:
 		hint_label.text = "Enemy turn…"
-	elif not _hand_focused:
-		hint_label.text = "Tap your hand to play a card"
 	else:
-		hint_label.text = "Play a monster to release its moves, or play a move card"
+		hint_label.text = "Drag a card onto an enemy to attack, or drag it up to play"
 
 	for tile in _hand_tiles:
-		tile.disabled = not battle.can_play_card(tile.card)
-		tile.set_selected(tile.card == _pending_ability_card or tile.card == _pending_item)
+		tile.set_disabled(not battle.can_play_card(tile.card))
 
 	end_turn_button.disabled = not battle.is_player_turn or battle.is_over
 
