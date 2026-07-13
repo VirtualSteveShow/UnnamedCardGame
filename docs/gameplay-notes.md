@@ -1212,3 +1212,38 @@ damage-only `AbilityCardData` and a block-only one directly through
 `hand_card_tile_v2.gd`'s `setup()` to confirm "Attack" vs "Skill" typing
 and that the Block-granting card's effect text contains a `[color=...]`
 BBCode span around the word "Block".
+
+## Tooltip gap + auto-height fix (2026-07-13, even later still)
+
+A screenshot showed the just-fixed tooltip sitting way off to the right
+of the focused card, with a big empty gap in between -- the previous
+round's `_hand_card_size().x * FOCUS_SCALE + 90.0` offset overshot
+badly. Worked out the actual geometry this time instead of guessing: a
+focused card scales up around its *horizontal center* (pivot_offset.x
+is exactly card width/2), so its right edge under `FOCUS_SCALE` lands
+at `rest_left + card_width * (1 + FOCUS_SCALE) / 2`, not `rest_left +
+card_width * FOCUS_SCALE` -- the old formula was measuring from the
+wrong edge. Rebuilt the gap as
+`card_width * (1 + FOCUS_SCALE) / 2 + margin` and empirically tuned
+`margin` (headless: focus a tile, read its and the tooltip's actual
+`get_global_rect()`, adjust) up to `80.0` to land on a clean ~20-50px
+gap with zero overlap across every hand slot, including the rightmost
+one (checked it doesn't run off the right edge of the screen either).
+
+Also added auto-height: the tooltip panel was a fixed 300x140, sized
+for a couple of short lines, but the creature tooltip rewrite from the
+previous round can now produce 4+ lines (one per ability plus the
+release-cadence line plus an on-summon line) that would've overflowed
+past the panel's bottom edge uncaught. `_resize_tooltip()` measures the
+description's actual wrapped height via `Font.get_multiline_string_size()`
+at DescLabel's real width (panel width minus its 24px of left/right
+margin) and grows `tooltip_panel.size.y` to fit before positioning it --
+DescLabel is already bottom-anchored to the panel so it stretches along
+for free.
+
+Verified headlessly: built a worst-case creature (2 abilities + an
+on-summon effect, 4 lines of description) and confirmed the panel grew
+from 140px to 209px tall with 18px of slack (161px needed, 179px
+available) instead of clipping; re-checked gap/overlap across all 5
+real starting hand tiles plus a forced worst-case creature in the
+rightmost hand slot specifically, all clean.

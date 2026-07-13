@@ -536,16 +536,42 @@ func _show_tooltip(card: BaseCardData, near_pointer: Vector2) -> void:
 		_hide_tooltip()
 		return
 	tooltip_title_label.text = card.card_name
-	tooltip_desc_label.text = _describe_card(card)
+	var desc := _describe_card(card)
+	tooltip_desc_label.text = desc
 	tooltip_panel.visible = true
+	_resize_tooltip(desc)
 	_position_tooltip(near_pointer)
 
 
+## DescLabel's height is fixed by the panel's -- and the panel's default
+## 140px only fits a couple of short lines, so a multi-ability creature's
+## description can run past the bottom edge unless the panel grows to
+## match. Measures the wrapped text height at DescLabel's actual width
+## (panel width minus its 12px left/right margins) and grows the panel
+## to fit, tall as it needs to be.
+const TOOLTIP_DESC_TOP := 40.0
+const TOOLTIP_DESC_BOTTOM_MARGIN := 8.0
+const TOOLTIP_MIN_HEIGHT := 140.0
+
+func _resize_tooltip(desc: String) -> void:
+	var font := tooltip_desc_label.get_theme_font("font")
+	var font_size := tooltip_desc_label.get_theme_font_size("font_size")
+	var desc_width := tooltip_panel.size.x - 24.0
+	var text_height := font.get_multiline_string_size(
+		desc, HORIZONTAL_ALIGNMENT_LEFT, desc_width, font_size).y
+	tooltip_panel.size.y = maxf(
+		TOOLTIP_MIN_HEIGHT, TOOLTIP_DESC_TOP + text_height + TOOLTIP_DESC_BOTTOM_MARGIN)
+
+
 func _position_tooltip(near_pointer: Vector2) -> void:
-	# Tooltip panel is 300px wide; sit it just to the right of the anchor
-	# point (card corner or pointer) with a gap wide enough to clear a
-	# focused/scaled-up card, instead of overlapping it.
-	var gap := _hand_card_size().x * FOCUS_SCALE + 90.0
+	# Sit just to the right of the focused/scaled-up card's actual right
+	# edge (card width expands symmetrically from its horizontal center
+	# under FOCUS_SCALE, so the edge lands at rest_left + width*(1+scale)/2,
+	# not rest_left + width*scale) plus a small gap, instead of the card's
+	# unscaled rest position -- that undershoots and overlaps, overshooting
+	# it (e.g. a flat +90px on top of the full scaled width) leaves it
+	# floating far past the card instead.
+	var gap := _hand_card_size().x * (1.0 + FOCUS_SCALE) / 2.0 + 80.0
 	tooltip_panel.global_position = near_pointer + Vector2(gap, -160)
 
 
