@@ -534,7 +534,10 @@ func _show_tooltip(card: BaseCardData, near_pointer: Vector2) -> void:
 
 
 func _position_tooltip(near_pointer: Vector2) -> void:
-	tooltip_panel.global_position = near_pointer + Vector2(90, -160)
+	# Tooltip panel is 300px wide; sit it just to the left of the anchor
+	# point (card corner or pointer) with a small gap, instead of
+	# overlapping it.
+	tooltip_panel.global_position = near_pointer + Vector2(-330, -160)
 
 
 func _hide_tooltip() -> void:

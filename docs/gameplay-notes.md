@@ -1112,3 +1112,37 @@ Control's global rect, since `get_root().size` reports a bogus 64x64 in
 `--headless --script` mode) -- edge cards land with ~48px of clearance,
 the center card (which gets extra arc-lift on top of the focus lift)
 with ~74px.
+
+## Hand card polish round (2026-07-13, later still)
+
+Three quick fixes after Steven tried the round-4 hand rework on-device:
+
+- **Cost badge wasn't in the top-left corner.** The round-4 edit had
+  moved `CostBadge` down to straddle the Name/Art boundary (to dodge
+  the newly-relocated name text), but that reads wrong -- energy cost
+  belongs in the corner, StS-style, not floating mid-card. Moved it
+  back to the top-left corner (`anchor_top` -0.06, `anchor_bottom`
+  0.15, same `anchor_left`/`anchor_right` as before), overlapping the
+  card's top-left corner the way a cost gem should.
+- **Too much padding around the card name.** `NameLabel`'s anchor band
+  was 0.05-0.21 (16% of card height) for a single line of 15pt text --
+  most of that was empty space above/below the text even with center
+  alignment. Tightened it to 0.02-0.14, and pulled `Art`'s top anchor
+  up from 0.23 to 0.16 to reclaim the freed space instead of leaving it
+  blank.
+- **Card tooltip overlapped the card.** `_position_tooltip()` offset
+  the 300px-wide tooltip panel by `Vector2(90, -160)` from the anchor
+  point (the focused tile's corner), which put the tooltip's left edge
+  90px right of the card's left edge -- well inside the ~192-226px-wide
+  card, so the tooltip visually sat on top of it. Changed the offset to
+  `Vector2(-330, -160)`, putting the tooltip's right edge a comfortable
+  ~70-90px to the left of the card instead.
+
+Verified headlessly: loaded `battle_v2.tscn`, read the leftmost hand
+tile's `NameLabel`/`Art`/`CostBadge` global rects directly (name now a
+tight ~32px band starting right at the card's top edge, art starting
+immediately after with only ~1px gap, cost badge straddling the tile's
+actual top-left corner) and confirmed the focused-tile tooltip's rect
+no longer intersects the tile's rect for both the leftmost and
+rightmost hand cards (checked both since they sit at opposite ends of
+the fan and the tooltip offset is unconditional).
