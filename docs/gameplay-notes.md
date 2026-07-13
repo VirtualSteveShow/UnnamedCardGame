@@ -1247,3 +1247,85 @@ from 140px to 209px tall with 18px of slack (161px needed, 179px
 available) instead of clipping; re-checked gap/overlap across all 5
 real starting hand tiles plus a forced worst-case creature in the
 rightmost hand slot specifically, all clean.
+
+## Unique ability art, first full batch (2026-07-13, even later still)
+
+Picked up the "known gap" logged in the previous round: ability cards
+generated from a captured creature were reusing that creature's own
+battle sprite (`source.get_battle_texture()`) for every single ability
+it had, so a raccoon's Strike and Guard cards looked identical, both
+just its idle card portrait. Fixed properly this time by generating a
+real unique image per ability instead of reusing existing art.
+
+**Pipeline**: booted the local ComfyUI server (`Launch_ComfyUI.bat`,
+takes several minutes to load all custom nodes) and the ComfyUI Phone
+App server (`server.py`, port 8080 -- needed `PYTHONUTF8=1` to work
+around a `UnicodeEncodeError` crash on Windows' cp1252 console when it
+tries to print an arrow character in its startup banner). Wrote
+`tools/gen_ability_art.py`, a new build-time script (same category as
+`tools/gen_background.py` -- not shipped, safe to delete once art is
+settled) that calls the Phone App's `/txt2img` endpoint per entry, polls
+`/status/<job_id>`, and saves straight from ComfyUI's output folder into
+both `art/wip/<faction>/` and `game/assets/<faction>/`.
+
+**Style continuity**: extracted the exact prompt text baked into every
+existing creature PNG's metadata (`PIL.Image.text['prompt']`, the
+ComfyUI workflow JSON is embedded right in the file) rather than
+guessing at the established look. Reused each creature's own subject
+description (species, markings, setting) as the base, swapped in an
+ability-specific action phrase (e.g. raccoon Strike: "lunging forward
+on all fours, claws swiped out, snarling"; raccoon Guard: "hunched low
+and defensive, tail puffed out, back arched"), and kept the same
+faction style suffix (City: gritty night/dark palette; Suburbs: sunny
+warm palette) plus a shared `dynamic action pose, motion lines` phrase
+so every ability card reads as clearly mid-action rather than a second
+portrait. All generated at 512x512 (matches the existing creature art
+resolution) since the art frame already crop-fills via
+`stretch_mode = STRETCH_KEEP_ASPECT_COVERED` regardless of source
+aspect ratio.
+
+**Coverage**: 39 images total -- 14 City creatures x2 (Strike + Guard,
+28 images), 7 Suburbs creatures x1 (Strike-only per the
+`simple_abilities` tutorial-simplicity rule, 7 images), the 2 Suburbs
+on-summon abilities (House Cat's Nuzzle, Family Dog's Warning Bite),
+and the 2 standalone player ability cards (Rock Throw, Brace) that
+previously both reused the player's own battle sprite too. Ran as one
+unattended background batch (~unique-prompt cost per docs/art-pipeline.md
+applies here too, so the full batch took a while) and all 39 succeeded
+on the first pass with no regenerations needed.
+
+**Wiring**: added `art_texture` to `CardAbility` (previously only
+`BaseCardData`/its subclasses had art, not the ability data itself).
+`CardDatabase.get_all_cards()` now derives each ability's art path by
+naming convention (`res://assets/<faction>/ability_<slug>_<ability>.png`,
+slug = the creature's display name lowercased with underscores) instead
+of requiring it authored per `REAL_CREATURES` entry, gated through a new
+`_load_ability_art()` helper that checks `ResourceLoader.exists()` first
+-- a creature with no generated art yet just falls back to null (which
+`battle_state_v2.gd`'s `_make_ability_card()`/`_resolve_on_summon()`
+already fall back from to `source.get_battle_texture()`) instead of a
+load error, so this is safe to land incrementally rather than needing
+every single image finished first. `battle_v2.gd`'s standalone player
+ability cards got the same `_load_ability_art()`-with-fallback pattern,
+falling back to `PLAYER_ABILITY_SPRITE_PATH` if ungenerated.
+
+Verified headlessly at each stage: mid-batch (a handful of images done)
+confirmed generated creatures show their new art and ungenerated ones
+cleanly fall back to null with no errors; after the full batch,
+confirmed all 37 creature-ability slots plus both standalone player
+cards resolve to real (non-fallback) art with zero missing; ran an
+actual `BattleStateV2` battle end-to-end (construct with a live Raccoon
+in deck, `start_battle()`, `play_creature_card()`) and confirmed the
+generated hand card is genuinely `Raccoon: Strike` art, not the
+raccoon's card portrait. Spot-checked renders across a bird (Crow), an
+insect (Cockroach), a reptile (Sewer Alligator), a Suburbs on-summon
+(House Cat's Nuzzle), and the player's own Rock Throw -- all matched
+the established pixel-art style with genuinely distinct action poses.
+
+**Still open**: `tools/gen_ability_art.py`'s `ENTRIES` list is
+hand-authored per creature/ability, not generated from
+`CardDatabase.REAL_CREATURES` -- if a new creature or ability is added
+later, its art needs a manually-written entry in that list and a rerun,
+it won't happen automatically. Also, ComfyUI and the Phone App server
+were left running in the background after this session rather than
+shut down, in case more art generation follows soon.

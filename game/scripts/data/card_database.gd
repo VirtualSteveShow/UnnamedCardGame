@@ -81,6 +81,18 @@ const REAL_CREATURES := [
 		xp = 0.0, level = 1, max_health = 4, can_evolve = false, simple_abilities = true},
 ]
 
+## Ability art lives at res://assets/<faction>/ability_<slug>_<ability>.png,
+## generated in bulk by tools/gen_ability_art.py (see docs/gameplay-notes.md)
+## -- named by convention off the creature's own slug rather than authored
+## per entry above, so this stays in sync automatically as art is added.
+## ResourceLoader.exists() guards against art that hasn't been generated
+## yet, so a creature with no ability art yet just falls back to its
+## battle/card portrait (CardAbility.art_texture staying null) instead of
+## a load error.
+static func _load_ability_art(path: String) -> Texture2D:
+	return load(path) if ResourceLoader.exists(path) else null
+
+
 static func get_all_cards() -> Array[CardData]:
 	var cards: Array[CardData] = []
 	for i in range(REAL_CREATURES.size()):
@@ -95,6 +107,10 @@ static func get_all_cards() -> Array[CardData]:
 		card.taunt = entry.get("taunt", false)
 		if entry.has("battle_path"):
 			card.battle_texture = load(entry.battle_path)
+
+		var faction_folder: String = entry.path.split("/")[3]
+		var slug: String = entry.name.to_lower().replace(" ", "_")
+
 		if entry.has("on_summon"):
 			var on_summon_data: Dictionary = entry.on_summon
 			var on_summon := CardAbility.new()
@@ -102,12 +118,17 @@ static func get_all_cards() -> Array[CardData]:
 			on_summon.damage = on_summon_data.get("damage", 0)
 			on_summon.heal = on_summon_data.get("heal", 0)
 			on_summon.energy_cost = 0
+			var on_summon_slug: String = on_summon.ability_name.to_lower().replace(" ", "_")
+			on_summon.art_texture = _load_ability_art(
+				"res://assets/%s/ability_%s_%s.png" % [faction_folder, slug, on_summon_slug])
 			card.on_summon_ability = on_summon
 
 		var strike := CardAbility.new()
 		strike.ability_name = "Strike"
 		strike.energy_cost = 1 + (i % 3)
 		strike.damage = strike.energy_cost * 3
+		strike.art_texture = _load_ability_art(
+			"res://assets/%s/ability_%s_strike.png" % [faction_folder, slug])
 
 		if entry.get("simple_abilities", false):
 			card.abilities = [strike]
@@ -116,6 +137,8 @@ static func get_all_cards() -> Array[CardData]:
 			guard.ability_name = "Guard"
 			guard.energy_cost = 1
 			guard.block = 3
+			guard.art_texture = _load_ability_art(
+				"res://assets/%s/ability_%s_guard.png" % [faction_folder, slug])
 			card.abilities = [strike, guard]
 
 		cards.append(card)

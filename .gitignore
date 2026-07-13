@@ -3,6 +3,10 @@
 Thumbs.db
 *.tmp
 
+# Python tooling (tools/*.py are build-time scripts, not shipped)
+__pycache__/
+*.pyc
+
 # Build output (APKs etc.) - regenerated via export, not source
 /builds/
 

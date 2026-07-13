@@ -132,3 +132,34 @@ same as txt2img.
   in a portrait-shaped tile gets cropped down to an unrecognizable close-up
   fur patch under cover mode. Centered mode letterboxes instead — with a
   transparent background, the letterbox space is invisible.
+
+## Ability card art (batch-generated, one script call per pass)
+
+Ability cards (a creature's Strike/Guard, on-summon abilities, standalone
+player abilities) each need their own unique art showing the *action*, not
+a reused creature portrait or battle sprite — see `tools/gen_ability_art.py`
+(same "build-time tool, not shipped" category as `gen_background.py`) and
+the "Unique ability art" section of `docs/gameplay-notes.md` for the full
+writeup. Key points for next time:
+
+- **Reuse the source creature's exact subject description from its own
+  PNG metadata** (`PIL.Image.open(path).text['prompt']` — the full ComfyUI
+  workflow JSON, including the original prompt string, is embedded right
+  in the file) rather than re-describing the creature from scratch. Swap
+  in an ability-specific action phrase, keep the same faction style suffix.
+- Add `"dynamic action pose, motion lines"` to the style suffix for ability
+  art specifically — without it, Flux tends to default back toward a calm
+  portrait pose even with an action verb in the subject description.
+- 512x512 is fine even though the ability card's art band is a short wide
+  strip, not square — the `TextureRect` already crop-fills via
+  `STRETCH_KEEP_ASPECT_COVERED`, so square source art works the same way
+  creature card art already does.
+- The Phone App server (`server.py`, port 8080) needs `PYTHONUTF8=1` set
+  when launched from a non-UTF8 Windows console — its startup banner
+  prints an arrow character that crashes on cp1252 otherwise.
+- `art_texture` lives on `CardAbility` itself now (not just
+  `BaseCardData`), loaded via `res://assets/<faction>/ability_<slug>_
+  <ability_name>.png` by naming convention (slug = card name lowercased
+  with underscores) — see `CardDatabase._load_ability_art()`. Safe to
+  generate incrementally: missing files just fall back to null, which
+  callers already fall back from to the creature's own portrait/sprite.

@@ -8,6 +8,12 @@ extends Resource
 @export var ability_name: String = "Ability"
 @export var energy_cost: int = 1
 
+## Unique art for this specific ability (e.g. a raccoon's Strike shows it
+## lunging to attack, distinct from its Guard art or its card portrait).
+## Null falls back to the source creature's battle/card art -- see
+## AbilityCardData construction in battle_state_v2.gd.
+@export var art_texture: Texture2D = null
+
 ## Damage dealt to the opposing creature when this ability is used.
 @export var damage: int = 0
 

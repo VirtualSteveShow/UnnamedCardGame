@@ -156,7 +156,7 @@ func _resolve_on_summon(source: CardData, ability: CardAbility) -> void:
 			var anim_card := AbilityCardData.new()
 			anim_card.source_creature = source
 			anim_card.ability = ability
-			anim_card.art_texture = source.get_battle_texture()
+			anim_card.art_texture = ability.art_texture if ability.art_texture else source.get_battle_texture()
 			ability_played.emit(anim_card, target)
 
 			var dealt := target.take_damage(ability.damage)
@@ -185,7 +185,7 @@ func _make_ability_card(source: CardData, ability: CardAbility, free: bool) -> A
 	ability_card.source_creature = source
 	ability_card.ability = ability
 	ability_card.card_name = "%s: %s" % [source.card_name, ability.ability_name]
-	ability_card.art_texture = source.get_battle_texture()
+	ability_card.art_texture = ability.art_texture if ability.art_texture else source.get_battle_texture()
 	ability_card.energy_cost = 0 if free else ability.energy_cost
 	return ability_card
 
