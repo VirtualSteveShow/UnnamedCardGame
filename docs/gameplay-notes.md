@@ -1146,3 +1146,69 @@ actual top-left corner) and confirmed the focused-tile tooltip's rect
 no longer intersects the tile's rect for both the leftmost and
 rightmost hand cards (checked both since they sit at opposite ends of
 the fan and the tooltip offset is unconditional).
+
+## Card front redesign toward Slay the Spire's look (2026-07-13, later still)
+
+Steven sent a reference screenshot of his own StS collection screen and
+called out three things our cards were missing, plus one correction to
+the previous round's tooltip fix (he'd said "left," meant "right").
+
+- **Tooltip side.** Flipped `_position_tooltip()`'s offset back to
+  positive X (right of the card instead of left), and made the gap
+  dynamic (`_hand_card_size().x * FOCUS_SCALE + 90.0`) instead of a
+  flat constant so it reliably clears a focused/scaled-up card of any
+  hand size with real margin -- verified headlessly across all 5
+  starting hand tiles (mix of creature and item cards) with zero
+  tooltip/tile rect overlaps.
+- **Art aspect ratio.** In the StS reference, ability/item card art is
+  a short, wide band directly under the name ribbon -- not the tall
+  portrait we'd been using everywhere. Split `hand_card_tile_v2.gd`'s
+  `setup()` into two layout presets applied by anchor: creature cards
+  (`CardData`) keep the original tall art (`ART_ANCHORS_CREATURE`,
+  0.16-0.8 of card height) since Steven asked for creature art to stay
+  the same size; every other card type (`AbilityCardData`,
+  `ItemCardData`) now uses a short band (`ART_ANCHORS_STS`, 0.16-0.44)
+  matching StS proportions.
+- **Effect text on the card face, glossary-style tooltip only for
+  creatures.** StS prints what a card actually does directly on the
+  card (colored keyword terms like "Block") and reserves the popup
+  tooltip for glossary-only content. Added a new `EffectLabel`
+  (`RichTextLabel`, bbcode-enabled) below `TypeLabel` for ability/item
+  cards, populated by a new `_build_effect_text()` +
+  `_highlight_keywords()` pair in `hand_card_tile_v2.gd` (currently
+  highlighting Block/Vulnerable/Taunt/Weak in gold, `#FFD94D`, matching
+  the cost badge's border color). Since the effect text now lives on
+  the card itself, `battle_v2.gd`'s `_show_tooltip()` was changed to
+  skip showing the popup entirely for non-creature cards (would just be
+  a duplicate) -- it now only fires for `CardData`. `_describe_card()`
+  was narrowed to only handle the creature case and rewritten to list
+  each of the creature's abilities individually with its energy cost
+  and effect (previously just said "releases its first move into your
+  hand" with no specifics), since that tooltip is now the *only* place
+  a creature's move details are explained.
+- **Creature cards list their abilities' names on the card.** Since
+  creature art stays full-size (no room for effect text), `TypeLabel`
+  now shows the creature's ability names (e.g. "Scratch, Guard") instead
+  of the generic "Monster" label for `CardData` cards specifically --
+  ability/item cards still show "Attack"/"Skill"/"Item" there as before.
+
+**Known gap, not addressed this round:** ability cards generated from a
+captured creature (`battle_state_v2.gd`'s `anim_card.art_texture =
+source.get_battle_texture()`) still reuse that creature's own battle
+sprite as their art instead of having unique per-ability art, which was
+part of Steven's ask ("all abilities... should have unique art and not
+just the re used animal art"). That requires actually generating new
+art per ability through the local ComfyUI pipeline (`tools/
+gen_background.py`'s sibling workflow, or a new one) -- a real
+asset-production task rather than a layout change, so it's logged here
+to pick up separately rather than rushed into this pass.
+
+Verified headlessly: loaded `battle_v2.tscn` and printed every starting
+hand tile's resolved art anchors, `TypeLabel` text, and `EffectLabel`
+visibility/text (creature cards: tall art anchors, ability-name list,
+hidden effect label; item cards: short art anchors, "Item" type,
+effect label populated from `description`); separately instantiated a
+damage-only `AbilityCardData` and a block-only one directly through
+`hand_card_tile_v2.gd`'s `setup()` to confirm "Attack" vs "Skill" typing
+and that the Block-granting card's effect text contains a `[color=...]`
+BBCode span around the word "Block".

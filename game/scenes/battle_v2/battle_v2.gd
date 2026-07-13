@@ -526,7 +526,15 @@ func _snap_back(tile: Control) -> void:
 	)
 
 
+## Ability/item cards now print their full effect text directly on the
+## card face (see hand_card_tile_v2.gd), Slay the Spire-style, so the
+## tooltip would just be a redundant duplicate for them. Creature cards
+## don't have room for that on the card, so they still get the tooltip
+## to explain their abilities in full.
 func _show_tooltip(card: BaseCardData, near_pointer: Vector2) -> void:
+	if not (card is CardData):
+		_hide_tooltip()
+		return
 	tooltip_title_label.text = card.card_name
 	tooltip_desc_label.text = _describe_card(card)
 	tooltip_panel.visible = true
@@ -534,37 +542,40 @@ func _show_tooltip(card: BaseCardData, near_pointer: Vector2) -> void:
 
 
 func _position_tooltip(near_pointer: Vector2) -> void:
-	# Tooltip panel is 300px wide; sit it just to the left of the anchor
-	# point (card corner or pointer) with a small gap, instead of
-	# overlapping it.
-	tooltip_panel.global_position = near_pointer + Vector2(-330, -160)
+	# Tooltip panel is 300px wide; sit it just to the right of the anchor
+	# point (card corner or pointer) with a gap wide enough to clear a
+	# focused/scaled-up card, instead of overlapping it.
+	var gap := _hand_card_size().x * FOCUS_SCALE + 90.0
+	tooltip_panel.global_position = near_pointer + Vector2(gap, -160)
 
 
 func _hide_tooltip() -> void:
 	tooltip_panel.visible = false
 
 
-func _describe_card(card: BaseCardData) -> String:
-	if card is AbilityCardData:
-		var parts: Array[String] = []
-		if card.ability.damage > 0:
-			parts.append("Deal %d damage." % card.ability.damage)
-		if card.ability.block > 0:
-			parts.append("Gain %d Block." % card.ability.block)
-		return "\n".join(parts)
-	elif card is CardData:
-		var desc := "Releases its first move into your hand."
-		if card.abilities.size() > 1:
-			desc = "Releases moves into your hand, one more each turn it stays on the field."
-		if card.on_summon_ability != null:
-			if card.on_summon_ability.damage > 0:
-				desc += "\nOn summon: deal %d damage to a random enemy." % card.on_summon_ability.damage
-			if card.on_summon_ability.heal > 0:
-				desc += "\nOn summon: heal %d HP." % card.on_summon_ability.heal
-		return desc
-	elif card is ItemCardData:
-		return card.description
-	return ""
+## Only called for creature cards (see _show_tooltip) -- ability/item
+## cards print their effect text directly on the card face instead
+## (hand_card_tile_v2.gd), so their tooltip text doesn't need building.
+func _describe_card(card: CardData) -> String:
+	var lines: Array[String] = []
+	for ability in card.abilities:
+		var effects: Array[String] = []
+		if ability.damage > 0:
+			effects.append("Deal %d damage" % ability.damage)
+		if ability.block > 0:
+			effects.append("Gain %d Block" % ability.block)
+		if ability.heal > 0:
+			effects.append("Heal %d HP" % ability.heal)
+		lines.append("%s (%d⚡): %s." % [ability.ability_name, ability.energy_cost, ", ".join(effects)])
+	var desc := "\n".join(lines)
+	desc += "\nReleases its first move into your hand." if card.abilities.size() <= 1 \
+		else "\nReleases one move into your hand per turn it stays on the field."
+	if card.on_summon_ability != null:
+		if card.on_summon_ability.damage > 0:
+			desc += "\nOn summon: deal %d damage to a random enemy." % card.on_summon_ability.damage
+		if card.on_summon_ability.heal > 0:
+			desc += "\nOn summon: heal %d HP." % card.on_summon_ability.heal
+	return desc
 
 
 func _on_end_turn_pressed() -> void:
