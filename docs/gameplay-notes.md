@@ -910,3 +910,53 @@ on what "1.0 scale" is calibrated against (a medium creature like House
 Cat?), and the actual pivot-offset math in whichever tile scripts
 display battle sprites (`field_monster_tile.gd`, `enemy_tile_v2.gd`,
 maybe `player_panel.gd`).
+
+## Background/grounding fixes, round 2 (2026-07-13, later still)
+
+More on-device feedback on the previous round surfaced a real bug, not
+just more tuning:
+
+- **Black bars on mobile, found the actual cause.** Every full-rect
+  background art node across the whole project (not just the new
+  backgrounds -- card art, battle sprites, item art, all of it) had
+  `stretch_mode = 5`, believed at the time to be "crop to fill." It
+  isn't -- checked the real enum values directly
+  (`TextureRect.STRETCH_KEEP_ASPECT_COVERED` prints `6`; `5` is
+  `STRETCH_KEEP_ASPECT_CENTERED`, which *fits within* the rect and
+  letterboxes/pillarboxes the rest instead of cropping). On a full-
+  screen background this shows up as literal black bars top and bottom
+  on any device wider than the source image's aspect ratio -- exactly
+  what showed up on-device. Fixed to `6` everywhere it appears (11
+  `.tscn` files, all art meant to fill its rect). The one other
+  reference in code (`battle_v2.gd`'s ability-pop sprite, set via the
+  symbolic `TextureRect.STRETCH_KEEP_ASPECT_CENTERED` name rather than a
+  numeric literal) was already correct as-is -- that sprite's own size is
+  directly tweened, so *not* cropping is the right behavior there.
+- **Creatures were too small.** The previous round's tight anchor band
+  (chasing a low horizon by squeezing the grid's height) was the direct
+  cause -- `GridContainer` sizes its children off the assigned band's
+  height when height is the binding constraint, so a short band means
+  small tiles. Restored a generous band (close to the original
+  pre-background sizing) to prioritize creature size.
+- **Raised the horizon in the art itself instead of fighting the UI.**
+  Rather than continuing to squeeze the creature grid down to chase a
+  low horizon (which is what made creatures tiny), regenerated all three
+  Suburbs battle backgrounds with the ground filling roughly three
+  quarters of the frame from the bottom (horizon around 35-45% down
+  instead of the original ~55-60%) -- a wide eye-level composition, not
+  an extreme low-angle shot (tried that first; it broke the pixel-art
+  style into a weird close-up voxel-grass texture). This meets the
+  creatures' natural resting position instead of requiring the layout to
+  reach down into a low horizon.
+
+Still not pixel-perfect across all three variants (the three
+backgrounds don't share an identical horizon height, and the fix is a
+single universal anchor adjustment applied to all of them) -- exact
+alignment is still real work for the bottom-pivot per-sprite-scale
+system above, not this pass.
+
+Verified headlessly: every scene's `BackgroundArt` node reports
+`stretch_mode == STRETCH_KEEP_ASPECT_COVERED`; a live battle confirms
+the field tile size is back to a comfortable ~280x395 (was ~98x138
+before this round); all six scenes still load and survive multiple
+frames with no errors.

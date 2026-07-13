@@ -24,7 +24,7 @@ grow_vertical = 2
 mouse_filter = 2
 texture = ExtResource("4_bg")
 expand_mode = 1
-stretch_mode = 5
+stretch_mode = 6
 
 [node name="Background" type="ColorRect" parent="."]
 layout_mode = 1
