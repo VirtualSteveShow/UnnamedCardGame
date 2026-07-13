@@ -70,10 +70,14 @@ const FIELD_FLEE_DURATION := 0.3
 ## width), how far each card rotates at the extremes of the hand, how
 ## much the outer cards lift relative to the center, and how much each
 ## card overlaps the last (fraction of card width per step).
-const HAND_CARD_WIDTH_FRACTION := 0.085
+const HAND_CARD_WIDTH_FRACTION := 0.10
 const HAND_MAX_ROTATION_DEG := 12.0
 const HAND_ARC_LIFT := 26.0
 const HAND_OVERLAP := 0.62
+
+## Resting cards sink into the bottom of the screen by this fraction of
+## their own height, so only the top ~2/3 is visible until focused.
+const HAND_SINK_FRACTION := 0.33
 
 ## Drag gesture tuning: how far the pointer must move from the press
 ## point before it counts as an actual drag (vs. a tap, which toggles
@@ -84,8 +88,11 @@ const DRAG_LIFT_SCALE := 1.35
 
 ## Tap-to-focus and arc-drag both use this same "lifted in place" look --
 ## a smaller, gentler version of the full lift-drag scale, since neither
-## of these leaves the hand.
-const FOCUS_LIFT := 34.0
+## of these leaves the hand. The lift is a fraction of card height (not
+## a fixed pixel amount) so it scales with HAND_CARD_WIDTH_FRACTION, and
+## is large enough to pull a fully-sunk resting card (see
+## HAND_SINK_FRACTION) entirely back above the visible screen edge.
+const FOCUS_LIFT_FRACTION := 0.42
 const FOCUS_SCALE := 1.18
 const FOCUS_Z_INDEX := 50
 const ARC_Z_INDEX := 60
@@ -365,9 +372,10 @@ func _reset_tile_visual(tile: Control) -> void:
 
 func _lift_focus_visual(tile: Control) -> void:
 	var rest_pos: Vector2 = tile.get_meta("rest_position", tile.position)
+	var lift := _hand_card_size().y * FOCUS_LIFT_FRACTION
 	tile.z_index = FOCUS_Z_INDEX
 	var tween := create_tween()
-	tween.tween_property(tile, "position", rest_pos - Vector2(0, FOCUS_LIFT), 0.12) \
+	tween.tween_property(tile, "position", rest_pos - Vector2(0, lift), 0.12) \
 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tween.parallel().tween_property(tile, "rotation_degrees", 0.0, 0.12)
 	tween.parallel().tween_property(tile, "scale", Vector2.ONE * FOCUS_SCALE, 0.12)
@@ -754,7 +762,8 @@ func _layout_hand() -> void:
 		# instead -- the natural "cards fanned in hand" look, where the
 		# two ends droop down and the middle card sits highest.
 		var arc_lift := HAND_ARC_LIFT * (1.0 - t * t)
-		var pos := Vector2(start_x + i * step, hand_area.size.y - card_size.y - arc_lift)
+		var sink := card_size.y * HAND_SINK_FRACTION
+		var pos := Vector2(start_x + i * step, hand_area.size.y - card_size.y - arc_lift + sink)
 
 		tile.set_meta("rest_position", pos)
 		tile.set_meta("rest_rotation", angle_deg)

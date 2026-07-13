@@ -1046,3 +1046,69 @@ fraction moved from ~0.37 to ~0.60 (vs. the player panel's fixed
 ~0.62); fielding two creatures at once still works with no crash and no
 bounding-box overlap between `EnemyRow` and the End Turn button despite
 the taller band.
+
+## Background/grounding fixes, round 4 + hand rework (2026-07-13, even later still)
+
+Round 3's push still wasn't enough -- Steven's screenshot after that
+round showed feet still floating clearly above the sidewalk line.
+Investigating turned up a measurement bug that had been quietly
+undermining every previous grounding round: all prior checks measured
+`tile.get_global_rect().end.y` -- the bottom of the *whole* tile/panel,
+which includes HP-bar and name-label space rendered *below* the
+character's feet. That's not the same as where the feet actually are.
+Rewrote the check to read `tile.art_rect.get_global_rect()` instead
+(all three tile scripts -- `player_panel.gd`, `enemy_tile_v2.gd`,
+`field_monster_tile.gd` -- already expose `@onready var art_rect:
+TextureRect = $Art`, so no script changes were needed, just a corrected
+measurement). The real feet positions were ~0.54-0.56 down, well short
+of the ~0.60 previously assumed "close enough." With the actual target
+identified, the same push-and-remeasure approach from round 3 converged
+in one pass: `PlayerPanel` anchor_top 0.14->0.24 / anchor_bottom
+0.62->0.72; `PlayerFieldRow` / `EnemyRow` anchor_top 0.40->0.47 /
+anchor_bottom 0.855->0.925 (debug viewer's mock overlay anchors synced
+to match). Re-measured with the corrected art-bottom check: field
+0.543->0.613, enemy 0.560->0.630, player 0.553->0.653 -- all landing
+close together now, and tile size confirmed still unchanged at 282x395.
+Pushing `EnemyRow`'s anchor_bottom out to 0.925 creates a small genuine
+rect overlap with the Hex End Turn button (both X 0.82-0.85 and Y
+0.86-0.925 overlap) -- unlike hand/enemy-tap input, which bypasses
+normal Godot GUI propagation via `battle_v2.gd`'s own `_input()`
+override, the Hex End Turn button is a real `Control`-based button that
+does rely on the standard `_gui_input` chain, so `mouse_filter = 2`
+(IGNORE) was added to both `PlayerFieldRow` and `EnemyRow` as a
+defensive fix -- neither container needs to receive input itself under
+this architecture.
+
+Also reworked the hand per Steven's request, in three parts:
+
+- **Cards slightly bigger.** `HAND_CARD_WIDTH_FRACTION` 0.085 -> 0.10.
+- **Name above the art, not below.** In `hand_card_tile_v2.tscn`,
+  `NameLabel` moved to the top of the card (0.05-0.21) and `Art` shifted
+  down to fill 0.23-0.8, with `TypeLabel` pushed down to 0.83-0.96 to
+  make room. `CostBadge` (anchored to the tile's top-left corner) would
+  have ended up overlapping the relocated name text, so its anchor_top/
+  anchor_bottom were moved from -0.05/0.16 to 0.14/0.35 to straddle the
+  new Name/Art boundary instead.
+- **Resting hand sunk so the bottom third is off-screen, focused cards
+  lift clear of it.** Added `HAND_SINK_FRACTION := 0.33` and applied it
+  as a downward offset to `_layout_hand()`'s per-card `pos.y`
+  (`card_size.y * HAND_SINK_FRACTION`). The old fixed `FOCUS_LIFT :=
+  34.0` pixel constant wouldn't scale with the new sink or with hand
+  size, so it became `FOCUS_LIFT_FRACTION := 0.42` (fraction of card
+  height instead of a flat pixel amount), used by both tap-to-focus and
+  arc-drag (`_lift_focus_visual()`, shared by `_set_focused_tile()` and
+  `_begin_arc()`). 0.42 was chosen with margin above the ~0.31 the math
+  works out to need (sink fraction, adjusted for the small upward shift
+  scaling produces around the tile's below-card pivot point, minus the
+  center card's extra arc-lift) so every hand position clears the sunk
+  rest position with room to spare, not just barely.
+
+Verified headlessly: loaded `battle_v2.tscn`, read each hand tile's
+`rest_position` meta and confirmed the sink offset matches
+`card_size.y * 0.33` exactly; then focused every one of the 5 starting
+hand tiles in turn and confirmed each one's focused global bottom edge
+lands above the screen's true bottom edge (derived from the root
+Control's global rect, since `get_root().size` reports a bogus 64x64 in
+`--headless --script` mode) -- edge cards land with ~48px of clearance,
+the center card (which gets extra arc-lift on top of the focus lift)
+with ~74px.
