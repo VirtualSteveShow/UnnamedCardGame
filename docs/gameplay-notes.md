@@ -981,3 +981,68 @@ Strike/Guard-style generic combat moves, nothing elemental/fantastical
 yet), and possibly the lore (`lore.md` frames captured creatures as a
 real-world "storage/command technology," which may or may not still fit
 if abilities get more overtly magical).
+
+## Background/grounding fixes, round 3 (2026-07-13, even later)
+
+Steven clarified the "XP bar" report from the previous round: it was
+actually the drop-shadow ellipse under creatures being mistaken for an
+empty progress bar (hard-edged StyleBoxFlat pill, same rounded shape a
+bar would have). Fixed by replacing the shadow on all three tiles
+(`player_panel`, `enemy_tile_v2`, `field_monster_tile`) with a soft
+radial-gradient texture (new shared resource,
+`resources/drop_shadow_gradient.tres` -- a `GradientTexture2D` fading
+from ~45% opaque black at the center to fully transparent at the edge)
+instead of a flat-color rounded rect. Reads unambiguously as a shadow
+now instead of an outlined bar.
+
+Also acted on two observations from Steven actually playing Slay the
+Spire for comparison:
+
+- **Characters sit slightly below screen-center in StS, not near the
+  top.** Measured our own player panel (already well-grounded from an
+  earlier round, bottom lands right around 62% down) against the
+  creature grids (which, it turned out, were still landing around 37%
+  down with a single creature fielded -- a 25-point gap, looking
+  visibly inconsistent). Root cause: `_fit_grid_tile_size` sizes tiles
+  by dividing the assigned band's height by `GRID_ROWS = 2` regardless
+  of how many rows are actually populated, and a `GridContainer` packs
+  its children from the top of its own rect rather than stretching to
+  fill it -- so with only one row of creatures in play, the visible
+  content only reaches roughly `anchor_top + one row's height`, well
+  short of `anchor_bottom`, no matter how far down anchor_bottom is
+  pushed. Fixed by making the band both taller *and* lower (anchor_top
+  0.17->0.40, anchor_bottom 0.63->0.855 for both `PlayerFieldRow` and
+  `EnemyRow`) -- taller preserves the same large tile size as the
+  previous round (measured and confirmed: 282x395, unchanged), lower
+  shifts a single fielded creature's landing spot from ~37% down to
+  ~60%, within 1.5 points of the player panel's 62%. Extending
+  anchor_bottom down to 0.855 doesn't visually collide with anything
+  below it (checked: no other interactive element shares both its X and
+  Y range at that depth), and doesn't affect hand-card or enemy-tap
+  input since those are hit-tested directly by `battle_v2.gd`'s own
+  `_input()` override rather than through Godot's normal
+  mouse_filter/propagation chain. The debug viewer's mock battle overlay
+  anchors were updated to match, so it stays an accurate preview.
+- **Our battle backgrounds had visible vanishing points; Slay the
+  Spire's don't.** StS renders battles against flat, side-on "stage"
+  backdrops -- architecture and floor rendered with minimal converging
+  perspective, more like a theater set than a photographed scene. Our
+  backyard/street/park backgrounds (even after the "raise the horizon"
+  round 2 fix) still had real depth-of-field perspective (fences/roads
+  receding to a point), which fights against flat 2D character
+  placement -- there's no way to make characters at different X
+  positions along a *receding* line all read as "the same distance
+  away." Regenerated all three with an explicit "flat side-on
+  theater-stage view, camera looking straight across rather than down
+  into the distance, minimal perspective convergence, elements arranged
+  as a flat backdrop layer at a consistent depth" framing. Result: fence/
+  house-row/playground read as a flat backdrop band with a flat ground
+  plane below, no vanishing point -- much closer to the StS reference.
+
+Verified headlessly: all six scenes load and survive multiple frames
+with no errors after the shadow-texture swap; a live battle confirms
+field/enemy tile size is unchanged (282x395) while their landing
+fraction moved from ~0.37 to ~0.60 (vs. the player panel's fixed
+~0.62); fielding two creatures at once still works with no crash and no
+bounding-box overlap between `EnemyRow` and the End Turn button despite
+the taller band.
