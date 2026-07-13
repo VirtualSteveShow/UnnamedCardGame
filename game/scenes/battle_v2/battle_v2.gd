@@ -883,6 +883,7 @@ func _refresh_all() -> void:
 
 	if battle.is_over:
 		result_label.text = "You Won!" if battle.player_won else "You Lost..."
+		result_return_button.text = "Continue" if Run.active and battle.player_won else "Return to Title"
 		result_overlay.visible = true
 
 

@@ -339,4 +339,4 @@ anchor_right = 0.9
 anchor_bottom = 0.85
 grow_horizontal = 2
 grow_vertical = 2
-text = "Return to Browser"
+text = "Continue"
