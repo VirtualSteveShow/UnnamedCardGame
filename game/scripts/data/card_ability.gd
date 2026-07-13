@@ -14,6 +14,12 @@ extends Resource
 ## AbilityCardData construction in battle_state_v2.gd.
 @export var art_texture: Texture2D = null
 
+## Which hit animation plays on the target when this ability lands
+## (see battle_v2.gd's _play_hit_animation). Every damaging ability uses
+## the default slash for now; per-ability variants (bite, peck, tail
+## whip, ...) will be added as they're designed.
+@export var hit_animation: String = "slash"
+
 ## Damage dealt to the opposing creature when this ability is used.
 @export var damage: int = 0
 

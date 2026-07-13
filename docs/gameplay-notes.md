@@ -1329,3 +1329,50 @@ later, its art needs a manually-written entry in that list and a rerun,
 it won't happen automatically. Also, ComfyUI and the Phone App server
 were left running in the background after this session rather than
 shut down, in case more art generation follows soon.
+
+## Hit animations replace the flying ability card (2026-07-13, even later still)
+
+Steven flagged that the ability art flying at the enemy read wrong (it
+looked like the card itself being thrown), and that impact should be
+shown on the *target*, with different hit animations per ability down
+the road -- his example: a slash drawn over the enemy plus a brief
+shake. Also raised the design question of whether common abilities like
+Strike should share one universal art instead of per-creature versions
+(answered in conversation: keeping per-creature art, since our Strike
+cards are creature-branded "Raccoon: Strike" cards with per-creature
+damage values, unlike StS where Strike is literally one card -- and the
+art ties the hand card back to its source creature on the field).
+
+- **Ability pop stays home.** `_on_ability_played()`'s art sprite now
+  grows/holds/fades in place over the source creature instead of
+  traveling to the enemy. The old on-arrival squash beat went with it.
+- **New `SlashEffect`** (`scripts/battle_v2/slash_effect.gd`, code-only
+  `_draw()` Control like `ArcIndicator`): a tapered diagonal stroke --
+  pointed at both ends, widest mid-stroke, warm-edged white core so it
+  reads on both dark City and bright Suburbs tiles -- swept across the
+  struck tile via a tweened `progress` property, held a beat, faded.
+- **Tile shake**: `_shake_tile()` runs a rapid decaying position jitter
+  ending exactly back at the original spot. Safe on GridContainer
+  children since the container only re-asserts positions on a sort.
+- **Per-ability dispatch scaffolding**: new
+  `CardAbility.hit_animation: String` (default `"slash"`), matched on in
+  `_play_hit_animation()`. Everything uses the slash today; bite/peck/
+  tail-whip variants slot in as new match arms later. The hit is timed
+  via a one-shot scene-tree timer to land right as the source pop peaks
+  (`ABILITY_POP_DURATION`), with an `is_instance_valid` guard for the
+  case where the hit killed the target and its tile was already cleaned
+  up during the delay.
+- **Drive-by fix**: `_fly_card_from_deck()`'s draw-animation callback
+  captured its hand tile directly, so any card play that rebuilt the
+  hand mid-animation made Godot print a "Lambda capture was freed" error
+  per pending callback (harmless -- the `is_instance_valid` guard
+  handled it -- but noisy enough to obscure real errors in test output;
+  confirmed pre-existing by replaying a no-target Brace against the
+  committed build). Now captures through a `weakref()` wrapper, which
+  stays alive itself, so the guard runs silently.
+
+Verified headlessly: a real battle (summon creature, play its damaging
+ability card at an enemy) spawns a `SlashEffect` over the correct enemy
+tile at full sweep, and the shaken tile lands back at exactly its
+pre-shake position; the no-target Brace replay confirms the lambda
+noise is gone.

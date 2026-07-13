@@ -629,19 +629,16 @@ func _on_cards_drawn(cards: Array) -> void:
 	_pending_draw_cards.append_array(cards)
 
 
+## The ability art pops up in place over the source creature (it does NOT
+## fly at the enemy -- an earlier version did, and it read as the card
+## itself being thrown). Impact is shown on the target's own tile instead,
+## via _play_hit_animation, timed to land right as the pop peaks.
 func _on_ability_played(card: AbilityCardData, target: BattleCombatant) -> void:
 	var start_pos: Vector2 = player_panel.global_position + player_panel.size / 2.0
 	if card.source_creature != null:
 		for tile in _field_tiles:
 			if tile.combatant.data == card.source_creature:
 				start_pos = tile.global_position + tile.size / 2.0
-				break
-
-	var end_pos: Vector2 = start_pos
-	if target != null:
-		for tile in _enemy_tiles:
-			if tile.combatant == target:
-				end_pos = tile.global_position + tile.size / 2.0
 				break
 
 	var sprite := TextureRect.new()
@@ -661,18 +658,54 @@ func _on_ability_played(card: AbilityCardData, target: BattleCombatant) -> void:
 	tween.tween_property(sprite, "modulate:a", 1.0, 0.1)
 	tween.parallel().tween_property(sprite, "size", big_size, ABILITY_POP_DURATION) \
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tween.parallel().tween_property(sprite, "global_position", end_pos - big_size / 2.0, ABILITY_POP_DURATION) \
+	tween.parallel().tween_property(sprite, "global_position", start_pos - big_size / 2.0, ABILITY_POP_DURATION) \
 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	if target != null:
-		# A quick squash-then-recover on arrival reads as an impact --
-		# the fly-in tween above already handles the "swing", this is
-		# just the "hit" beat on top of it.
-		tween.tween_callback(func() -> void: sprite.pivot_offset = big_size / 2.0)
-		tween.tween_property(sprite, "scale", Vector2(1.25, 0.75), 0.05)
-		tween.tween_property(sprite, "scale", Vector2.ONE, 0.1)
 	tween.tween_interval(ABILITY_POP_HOLD)
 	tween.tween_property(sprite, "modulate:a", 0.0, 0.2)
 	tween.tween_callback(sprite.queue_free)
+
+	if target != null:
+		for tile in _enemy_tiles:
+			if tile.combatant == target:
+				get_tree().create_timer(ABILITY_POP_DURATION).timeout.connect(
+					_play_hit_animation.bind(card.ability, tile))
+				break
+
+
+## Plays this ability's hit animation over the struck tile. Dispatches on
+## CardAbility.hit_animation so each ability can get its own impact visual
+## later (bite, peck, tail whip, ...) -- everything uses the default slash
+## for now. Guards against the tile having been freed in the delay between
+## the ability resolving and the pop peaking (e.g. the hit killed it and
+## _remove_dead_enemy_tiles already cleaned it up).
+func _play_hit_animation(ability: CardAbility, tile: Control) -> void:
+	if not is_instance_valid(tile):
+		return
+	match ability.hit_animation:
+		_:
+			var slash := SlashEffect.new()
+			animation_layer.add_child(slash)
+			slash.global_position = tile.get_global_rect().position
+			slash.size = tile.size
+
+			var tween := create_tween()
+			tween.tween_property(slash, "progress", 1.0, 0.1)
+			tween.tween_interval(0.15)
+			tween.tween_property(slash, "modulate:a", 0.0, 0.15)
+			tween.tween_callback(slash.queue_free)
+
+			_shake_tile(tile)
+
+
+## Brief impact shake: rapid decaying position jitter, ending back exactly
+## at the tile's original spot. Safe on GridContainer children -- the
+## container only re-asserts positions on a sort, and this finishes (and
+## restores) long before anything triggers one.
+func _shake_tile(tile: Control) -> void:
+	var original: Vector2 = tile.position
+	var tween := create_tween()
+	for offset in [Vector2(9, 0), Vector2(-7, 3), Vector2(5, -2), Vector2(-3, 1), Vector2.ZERO]:
+		tween.tween_property(tile, "position", original + offset, 0.04)
 
 
 func _on_creature_entered_field(combatant: BattleCombatant) -> void:
@@ -866,9 +899,16 @@ func _fly_card_from_deck(tile: Control, delay: float) -> void:
 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tween.parallel().tween_property(ghost, "size", target_size, DRAW_ANIM_DURATION) \
 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	# Captured via weakref, not directly: a card play can rebuild the hand
+	# (freeing this tile) while this draw animation is still in flight, and
+	# a freed direct capture makes Godot print a "Lambda capture was freed"
+	# error on every callback even though the guard handles it fine. The
+	# WeakRef wrapper object itself stays alive, so no error.
+	var tile_ref: WeakRef = weakref(tile)
 	tween.tween_callback(func() -> void:
-		if is_instance_valid(tile):
-			tile.modulate.a = 1.0
+		var t: Control = tile_ref.get_ref()
+		if t != null:
+			t.modulate.a = 1.0
 		ghost.queue_free()
 	)
 
