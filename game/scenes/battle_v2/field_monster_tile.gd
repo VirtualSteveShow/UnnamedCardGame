@@ -1,4 +1,4 @@
-extends Panel
+extends Control
 ## Battlefield presence for a played creature in the hand-based combat
 ## prototype (BattleStateV2) -- shown for as long as the creature is
 ## alive, with a slim HP bar matching enemy_tile_v2's convention. No tap

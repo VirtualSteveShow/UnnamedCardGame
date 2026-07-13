@@ -1,13 +1,6 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scenes/battle_v2/field_monster_tile.gd" id="1_script"]
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel_bg"]
-bg_color = Color(0.16, 0.16, 0.2, 1)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_shadow"]
 bg_color = Color(0, 0, 0, 0.35)
@@ -16,10 +9,9 @@ corner_radius_top_right = 50
 corner_radius_bottom_right = 50
 corner_radius_bottom_left = 50
 
-[node name="FieldMonsterTile" type="Panel"]
+[node name="FieldMonsterTile" type="Control"]
 custom_minimum_size = Vector2(180, 245)
 layout_mode = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_panel_bg")
 script = ExtResource("1_script")
 
 [node name="Shadow" type="Panel" parent="."]
@@ -80,6 +72,9 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 5
 text = "Creature"
 horizontal_alignment = 1
 clip_text = true

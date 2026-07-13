@@ -1,4 +1,4 @@
-extends Panel
+extends Control
 ## Shows the player's personal HP/block pool in the hand-based combat
 ## prototype (BattleStateV2) -- replaces the player creature column from
 ## the original battle scene, since the player no longer fields creatures

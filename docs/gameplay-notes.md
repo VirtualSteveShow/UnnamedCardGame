@@ -859,3 +859,54 @@ Verified headlessly: all four menu-style scenes report a non-null
 background is actually randomized (multiple distinct paths seen) and
 always one of the three expected Suburbs files; all five scenes still
 load and survive multiple frames with no errors.
+
+**Follow-up round (2026-07-13, later), from on-device feedback on the
+above:**
+- All 7 backgrounds regenerated at 1536x640 (2.4:1, "ultra wide")
+  instead of the original 1024x576 (16:9) -- a 16:9-ish crop-to-fill was
+  fine on a 16:9 device, but `STRETCH_KEEP_ASPECT_COVERED` crops from
+  whichever axis has less spare source image, so an Android phone with a
+  wider-than-16:9 landscape viewport (common -- a tall portrait phone
+  rotated into forced landscape often lands around 19:9-21:9) would have
+  started cropping the *top and bottom* instead of just the sides,
+  cutting into character heads/ground. Wider source art gives horizontal
+  crop room on any real device aspect ratio without ever needing to
+  crop vertically.
+- Removed the dark boxed panel behind the player and player-field-
+  creature tiles (`PlayerPanel`/`FieldMonsterTile` were both rooted on a
+  `Panel` node, which carries a themed background box by default even
+  without an explicit style override -- changed both to plain `Control`,
+  matching how `EnemyTileV2` was already boxless). Labels that used to
+  sit on that box picked up a font outline instead, for legibility
+  directly over the art.
+- Moved the player panel and both creature grids further down/into a
+  shorter vertical band (roughly the lower third of the screen) so
+  they land in the grass/ground area of the new art instead of floating
+  in the sky -- an approximate, one-size-fits-all adjustment across all
+  three Suburbs battle variants, not pixel-perfect per background. See
+  the TODO right below for the real long-term fix.
+- New debug tool: `scenes/debug/background_viewer.tscn`, reachable via a
+  button on the Options screen -- flips through all 7 background images
+  full-screen with prev/next buttons, so they can be reviewed without
+  relying on the random 1-of-3 battle background draw.
+
+## TODO: per-sprite scale from a bottom-center pivot (2026-07-13)
+
+Idea from Steven: every creature/character sprite gets rendered in
+ComfyUI at the same base resolution (as now), but in-game each one is
+individually scaled from a bottom-center pivot point -- e.g. a bird
+renders visibly smaller than a dog, rather than every creature reading
+as roughly the same on-screen size regardless of species. This is also
+the real fix for precise "standing on the ground" alignment (the
+2026-07-13 grid repositioning above is a rough approximation, not this)
+-- a bottom-pivot scale means a sprite's feet stay anchored to wherever
+its tile places them regardless of how tall the creature is, instead of
+the whole tile (including empty headroom above a small creature) being
+what's positioned.
+
+Not designed or built yet. Whenever this gets picked up: needs a
+per-creature scale value somewhere (CardData? a new field), a decision
+on what "1.0 scale" is calibrated against (a medium creature like House
+Cat?), and the actual pivot-offset math in whichever tile scripts
+display battle sprites (`field_monster_tile.gd`, `enemy_tile_v2.gd`,
+maybe `player_panel.gd`).
