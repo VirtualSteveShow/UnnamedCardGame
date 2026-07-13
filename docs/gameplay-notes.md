@@ -735,7 +735,8 @@ to come once this round has been played on-device.
 
 Every scene (title, card browser, options, Deck Battle) currently uses a
 flat solid-color background. Real background art is wanted eventually for
-all of them -- tracked here as a to-do, not being built yet.
+all of them. **In progress as of 2026-07-13** -- see the dated section
+near the end of this doc for what's actually been generated/wired in.
 
 ## Battle bugfix + feature round (2026-07-12, later)
 
@@ -803,3 +804,58 @@ waiting), drop shadows under creatures/player, and short 1-2 frame
 procedural attack lunges -- all intended to be done with `Tween`s on the
 existing static art rather than new sprite-sheet frames, to keep the pass
 small. Not yet started.
+
+## TODO: numeric power-value formula for balancing (2026-07-13)
+
+Idea from Steven: work out a formula that converts a card or enemy's
+stats (HP, damage, energy cost, block, on-summon effects, taunt, etc.)
+into a single numeric "power value" -- e.g. House Cat = 3.7 -- so cards
+can eventually be compared/tuned mathematically instead of purely by
+feel. Explicitly framed as a later step ("at some point"), not something
+to build now -- flagging here so it isn't lost.
+
+Not designed yet. Whenever this gets picked up, worth deciding: whether
+the formula should account for energy cost as a *divisor* (value per
+energy spent, closer to how competitive deckbuilders like Marvel Snap/
+Hearthstone informally judge card strength) or as a flat input alongside
+HP/damage; whether enemy-only traits (Taunt, on-summon abilities) get
+their own weighted terms or reuse the same formula as player cards; and
+whether the output number should map to anything visible in-game (a
+displayed rarity/cost signal) or stay purely an internal balancing tool.
+
+## Background art pass (2026-07-13)
+
+First batch of real background art, closing out most of the
+backgrounds-for-all-scenes TODO above. Generated via the same local
+ComfyUI pipeline the creature art already used (Flux 2 Klein GGUF,
+extracted from an existing asset's embedded PNG workflow metadata and
+reused directly) rather than a new tool -- `tools/gen_background.py`
+(repo root, sibling to `game/`, deliberately outside the Godot project
+folder so it doesn't get swept into exports) is a small standalone
+script that submits that same workflow to the local server's HTTP API
+and saves the result. One-off/reusable for future art passes, not
+imported by the game itself.
+
+Seven images at 1024x576, `assets/backgrounds/`:
+- `title_bg.png`, `options_bg.png`, `card_browser_bg.png`, `map_bg.png`
+  -- one per menu screen.
+- `battle_bg_backyard.png`, `battle_bg_street.png`, `battle_bg_park.png`
+  -- three Suburbs battle variants; `battle_v2.gd` picks one at random
+  per battle for variety. Not faction-aware yet (there's no City content
+  in the run to need it for) -- a City battle would need this keyed off
+  the enemy roster instead of a single fixed list.
+
+Every scene layers the art as a full-rect `BackgroundArt` TextureRect
+(`STRETCH_KEEP_ASPECT_COVERED`, matching the crop-to-fill convention
+used everywhere else in the project) underneath the existing flat-color
+`Background` ColorRect, which had its alpha dropped to ~0.55-0.65 so it
+now acts as a dimming scrim instead of a solid fill -- keeps UI text
+readable over a busier image. Labels sitting directly on the scrim (not
+inside their own panel/button background) also picked up a font outline
+for the same reason.
+
+Verified headlessly: all four menu-style scenes report a non-null
+`BackgroundArt.texture`; 15 fresh `battle_v2` instances confirm the
+background is actually randomized (multiple distinct paths seen) and
+always one of the three expected Suburbs files; all five scenes still
+load and survive multiple frames with no errors.

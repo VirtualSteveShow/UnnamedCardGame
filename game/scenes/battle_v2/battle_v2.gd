@@ -47,6 +47,17 @@ const ENEMY_TEAM_NAMES := ["Rabbit", "Robin", "Hamster"]
 ## _build_standalone_ability_cards().
 const PLAYER_ABILITY_SPRITE_PATH := "res://assets/player/player_battle_sprite.png"
 
+## Every current battle node is Suburbs-set (see RunState.nodes), so one
+## of these is picked at random each battle for variety. Not
+## faction-aware yet -- a City Faction battle backdrop would need this
+## keyed off the node/enemy roster instead of picked from a single fixed
+## list, but there's no City content in the run yet to need that for.
+const BATTLE_BACKGROUNDS := [
+	"res://assets/backgrounds/battle_bg_backyard.png",
+	"res://assets/backgrounds/battle_bg_street.png",
+	"res://assets/backgrounds/battle_bg_park.png",
+]
+
 const MAX_LOG_LINES := 3
 
 const ABILITY_POP_DURATION := 0.25
@@ -79,6 +90,7 @@ const FOCUS_SCALE := 1.18
 const FOCUS_Z_INDEX := 50
 const ARC_Z_INDEX := 60
 
+@onready var background_art: TextureRect = $BackgroundArt
 @onready var player_panel := $PlayerPanel
 @onready var field_row: GridContainer = $PlayerFieldRow
 @onready var enemy_row: GridContainer = $EnemyRow
@@ -129,6 +141,8 @@ var _focused_tile: Control = null # tap-focused card, if any
 
 
 func _ready() -> void:
+	background_art.texture = load(BATTLE_BACKGROUNDS[randi() % BATTLE_BACKGROUNDS.size()])
+
 	var deck_cards: Array[BaseCardData] = _build_deck_cards()
 	deck_cards.append_array(_build_standalone_ability_cards())
 

@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scenes/card_browser/card_browser.gd" id="1_script"]
 [ext_resource type="PackedScene" path="res://scenes/card_browser/card_detail.tscn" id="2_detail"]
 [ext_resource type="PackedScene" path="res://scenes/card_browser/item_card_detail.tscn" id="3_item_detail"]
+[ext_resource type="Texture2D" path="res://assets/backgrounds/card_browser_bg.png" id="4_bg"]
 
 [node name="CardBrowser" type="Control"]
 layout_mode = 3
@@ -13,6 +14,18 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_script")
 
+[node name="BackgroundArt" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("4_bg")
+expand_mode = 1
+stretch_mode = 5
+
 [node name="Background" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -20,7 +33,8 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.145098, 0.145098, 0.180392, 1)
+mouse_filter = 2
+color = Color(0.086, 0.086, 0.106, 0.65)
 
 [node name="TitleLabel" type="Label" parent="."]
 layout_mode = 1
@@ -29,6 +43,8 @@ offset_top = 14.0
 offset_right = 400.0
 offset_bottom = 54.0
 theme_override_font_sizes/font_size = 28
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 6
 text = "Card Browser"
 
 [node name="BackButton" type="Button" parent="."]
