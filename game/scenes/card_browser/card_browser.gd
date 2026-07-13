@@ -23,6 +23,10 @@ const TITLE_BAR_HEIGHT := 50.0
 
 const VERSION_LABEL_SIZE := Vector2(160.0, 44.0)
 
+## Columns shown are however many naturally fit, minus this many -- see
+## _update_card_layout.
+const COLUMN_REDUCTION := 2
+
 @onready var scroll_container: ScrollContainer = $ScrollContainer
 @onready var grid: GridContainer = $ScrollContainer/GridContainer
 @onready var title_label: Label = $TitleLabel
@@ -158,7 +162,10 @@ func _update_card_layout() -> void:
 
 	var available_width: float = scroll_container.size.x
 	var columns := int((available_width + h_separation) / (card_width + h_separation))
-	grid.columns = maxi(1, columns)
+	# Deliberately narrower than what actually fits, so the grid doesn't
+	# wall-to-wall the background art -- purely a display preference now
+	# that there's real background art behind the grid to see.
+	grid.columns = maxi(1, columns - COLUMN_REDUCTION)
 
 
 func _on_card_selected(card_data: CardData) -> void:

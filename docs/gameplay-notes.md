@@ -960,3 +960,24 @@ Verified headlessly: every scene's `BackgroundArt` node reports
 the field tile size is back to a comfortable ~280x395 (was ~98x138
 before this round); all six scenes still load and survive multiple
 frames with no errors.
+
+## TODO: lean more Pokémon, less strict real-world realism (2026-07-13)
+
+Idea from Steven: while he still likes the original real-world-animal
+concept, he's considering leaning further toward Pokémon-style creature
+design rather than staying strictly grounded/realistic -- e.g. a cat
+that can throw fireballs. Looser realism opens up wilder ability
+concepts and character variety than "what could a real house cat
+plausibly do."
+
+Not decided or built -- no direction change has actually been made yet
+(current creatures/abilities/art style are unchanged). Flagging here so
+it isn't lost. Whenever this gets picked up, it likely touches: the art
+style prompts (current convention is explicitly "naturalistic
+proportions, not chibi, not kawaii, not a cute mascot" -- see the
+per-creature generation notes earlier in this doc, which would need
+revisiting), the ability roster (abilities are currently just
+Strike/Guard-style generic combat moves, nothing elemental/fantastical
+yet), and possibly the lore (`lore.md` frames captured creatures as a
+real-world "storage/command technology," which may or may not still fit
+if abilities get more overtly magical).
